@@ -1,10 +1,20 @@
 package me.topilov.springplayground.auth.dto
 
+import io.swagger.v3.oas.annotations.media.Schema
 import jakarta.validation.constraints.NotBlank
 
+@Schema(description = "Credentials used for session-based login.")
 data class LoginRequest(
     @field:NotBlank
+    @field:Schema(
+        description = "Username or email address of the user.",
+        example = "demo",
+    )
     val usernameOrEmail: String,
     @field:NotBlank
+    @field:Schema(
+        description = "Plain-text password submitted to the backend for authentication.",
+        example = "demo-password",
+    )
     val password: String,
 )

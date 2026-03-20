@@ -1,0 +1,254 @@
+openapi: 3.1.0
+info:
+  title: Spring Playground Backend API
+  description: Session-based auth/profile/public HTTP API. This OpenAPI schema is
+    the machine-readable contract for frontend integration.
+  version: 0.0.1-SNAPSHOT
+servers:
+- url: http://localhost:8080
+  description: Local development server
+tags:
+- name: Auth
+  description: Session-based authentication endpoints.
+- name: Public
+  description: Unauthenticated public endpoints.
+- name: Profile
+  description: Authenticated profile endpoints.
+paths:
+  /api/profile/me:
+    get:
+      tags:
+      - Profile
+      summary: Get current profile
+      description: Returns the profile linked to the current authenticated session.
+      operationId: currentProfile
+      responses:
+        "200":
+          description: Current profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Authenticated user has no linked profile.
+      security:
+      - sessionCookie: []
+    put:
+      tags:
+      - Profile
+      summary: Update current profile
+      description: Updates the profile linked to the current authenticated session.
+      operationId: updateCurrentProfile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+        required: true
+      responses:
+        "200":
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "400":
+          description: Validation failed for the submitted profile payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Authenticated user has no linked profile.
+      security:
+      - sessionCookie: []
+  /api/auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Logout
+      description: Invalidates the current server-side session. The endpoint returns
+        204 even when no active session exists.
+      operationId: logout
+      responses:
+        "204":
+          description: Logout completed.
+  /api/auth/login:
+    post:
+      tags:
+      - Auth
+      summary: Login
+      description: Authenticates by username or email and creates a server-side session
+        backed by the JSESSIONID cookie.
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: Successful login. The response body describes the authenticated
+            user and the response sets JSESSIONID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "401":
+          description: Invalid credentials or rejected login request.
+  /api/public/ping:
+    get:
+      tags:
+      - Public
+      summary: Public ping
+      description: Returns a simple public status response so callers can verify that
+        the backend is reachable.
+      operationId: ping
+      responses:
+        "200":
+          description: Public ping response.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicPingResponse"
+components:
+  schemas:
+    UpdateProfileRequest:
+      type: object
+      description: Payload used to update the current authenticated user's profile.
+      properties:
+        displayName:
+          type: string
+          description: User-facing display name.
+          example: Updated Demo
+          maxLength: 120
+          minLength: 0
+        bio:
+          type: string
+          description: Short profile biography. Defaults to an empty string when omitted.
+          example: Updated from frontend
+          maxLength: 600
+          minLength: 0
+      required:
+      - displayName
+    ProfileResponse:
+      type: object
+      description: Current authenticated user's profile.
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: demo
+        email:
+          type: string
+          example: demo@example.com
+        role:
+          type: string
+          example: USER
+        displayName:
+          type: string
+          example: Demo User
+        bio:
+          type: string
+          example: Session-backed example profile
+      required:
+      - bio
+      - displayName
+      - email
+      - id
+      - role
+      - userId
+      - username
+    ApiErrorResponse:
+      type: object
+      description: Framework-generated error response body.
+      properties:
+        timestamp:
+          type: string
+          example: 2026-03-20T06:22:13.782Z
+        status:
+          type: integer
+          format: int32
+          example: 400
+        error:
+          type: string
+          example: Bad Request
+        path:
+          type: string
+          example: /api/profile/me
+      required:
+      - error
+      - path
+      - status
+      - timestamp
+    LoginRequest:
+      type: object
+      description: Credentials used for session-based login.
+      properties:
+        usernameOrEmail:
+          type: string
+          description: Username or email address of the user.
+          example: demo
+          minLength: 1
+        password:
+          type: string
+          description: Plain-text password submitted to the backend for authentication.
+          example: demo-password
+          minLength: 1
+      required:
+      - password
+      - usernameOrEmail
+    LoginResponse:
+      type: object
+      description: Session login result returned after successful authentication.
+      properties:
+        authenticated:
+          type: boolean
+          example: true
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        username:
+          type: string
+          example: demo
+        email:
+          type: string
+          example: demo@example.com
+        role:
+          type: string
+          example: USER
+      required:
+      - authenticated
+      - email
+      - role
+      - userId
+      - username
+    PublicPingResponse:
+      type: object
+      description: Simple public reachability response.
+      properties:
+        status:
+          type: string
+          example: ok
+      required:
+      - status
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      description: Session cookie returned by POST /api/auth/login and sent on protected
+        requests.
+      name: JSESSIONID
+      in: cookie
