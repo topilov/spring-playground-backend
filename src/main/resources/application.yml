@@ -1,6 +1,14 @@
 spring:
   application:
     name: spring-playground
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:false}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/spring_playground}
     username: ${DB_USERNAME:spring}
@@ -17,6 +25,9 @@ spring:
     enabled: true
 
 management:
+  health:
+    mail:
+      enabled: false
   endpoints:
     web:
       exposure:
@@ -31,3 +42,11 @@ server:
       cookie:
         http-only: true
         same-site: lax
+
+app:
+  mail:
+    from: ${MAIL_FROM:no-reply@example.com}
+    app-name: ${MAIL_APP_NAME:Spring Playground}
+    public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
+    reset-password-path: ${APP_RESET_PASSWORD_PATH:/reset-password}
+    password-reset-ttl: ${APP_PASSWORD_RESET_TTL:PT30M}

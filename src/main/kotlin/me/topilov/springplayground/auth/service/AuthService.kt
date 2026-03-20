@@ -3,28 +3,188 @@ package me.topilov.springplayground.auth.service
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import me.topilov.springplayground.auth.domain.AuthUser
+import me.topilov.springplayground.auth.domain.PasswordResetToken
+import me.topilov.springplayground.auth.dto.ForgotPasswordRequest
+import me.topilov.springplayground.auth.dto.ForgotPasswordResponse
 import me.topilov.springplayground.auth.dto.LoginRequest
 import me.topilov.springplayground.auth.dto.LoginResponse
+import me.topilov.springplayground.auth.dto.RegisterRequest
+import me.topilov.springplayground.auth.dto.RegisterResponse
+import me.topilov.springplayground.auth.dto.ResetPasswordRequest
+import me.topilov.springplayground.auth.dto.ResetPasswordResponse
+import me.topilov.springplayground.auth.exception.AuthEmailAlreadyUsedException
+import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedException
+import me.topilov.springplayground.auth.exception.InvalidPasswordResetTokenException
+import me.topilov.springplayground.auth.repository.AuthUserRepository
+import me.topilov.springplayground.auth.repository.PasswordResetTokenRepository
 import me.topilov.springplayground.auth.security.AppUserPrincipal
+import me.topilov.springplayground.mail.EmailService
+import me.topilov.springplayground.mail.MailProperties
+import me.topilov.springplayground.profile.domain.UserProfile
+import me.topilov.springplayground.profile.repository.UserProfileRepository
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.core.context.SecurityContextHolderStrategy
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler
 import org.springframework.security.web.context.SecurityContextRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.validation.annotation.Validated
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.time.Instant
+import java.util.Base64
 
 @Service
 @Validated
 class AuthService(
     private val authenticationManager: AuthenticationManager,
     private val securityContextRepository: SecurityContextRepository,
+    private val authUserRepository: AuthUserRepository,
+    private val userProfileRepository: UserProfileRepository,
+    private val passwordResetTokenRepository: PasswordResetTokenRepository,
+    private val passwordEncoder: PasswordEncoder,
+    private val emailService: EmailService,
+    private val mailProperties: MailProperties,
+    transactionManager: PlatformTransactionManager,
 ) {
     private val securityContextHolderStrategy: SecurityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy()
     private val logoutHandler = SecurityContextLogoutHandler()
+    private val transactionTemplate = TransactionTemplate(transactionManager)
+
+    fun register(@Valid request: RegisterRequest): RegisterResponse {
+        val registration = requireNotNull(transactionTemplate.execute<RegisteredUser> {
+            val username = request.username.trim()
+            val email = request.email.trim().lowercase()
+
+            if (authUserRepository.existsByUsernameIgnoreCase(username)) {
+                throw AuthUsernameAlreadyUsedException(username)
+            }
+
+            if (authUserRepository.existsByEmailIgnoreCase(email)) {
+                throw AuthEmailAlreadyUsedException(email)
+            }
+
+            val user = authUserRepository.save(
+                AuthUser(
+                    username = username,
+                    email = email,
+                    passwordHash = requireNotNull(passwordEncoder.encode(request.password)) {
+                        "Encoded password is missing"
+                    },
+                ),
+            )
+
+            userProfileRepository.save(
+                UserProfile(
+                    user = user,
+                    displayName = username,
+                    bio = "",
+                ),
+            )
+
+            RegisteredUser(
+                userId = requireNotNull(user.id) { "Persisted user id is missing" },
+                username = user.username,
+                email = user.email,
+            )
+        })
+
+        try {
+            emailService.sendWelcomeEmail(
+                recipientEmail = registration.email,
+                username = registration.username,
+            )
+        } catch (exception: RuntimeException) {
+            log.warn("Failed to send welcome email to {}", registration.email, exception)
+        }
+
+        return RegisterResponse(
+            userId = registration.userId,
+            username = registration.username,
+            email = registration.email,
+        )
+    }
+
+    fun forgotPassword(@Valid request: ForgotPasswordRequest): ForgotPasswordResponse {
+        val dispatch = transactionTemplate.execute<PasswordResetDispatch?> {
+            val email = request.email.trim().lowercase()
+            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null) ?: return@execute null
+            val userId = requireNotNull(user.id) { "Persisted user id is missing" }
+            val now = Instant.now()
+
+            passwordResetTokenRepository.findAllByUserIdAndUsedAtIsNull(userId)
+                .forEach { existingToken -> existingToken.usedAt = now }
+
+            val rawToken = generateToken()
+            val hashedToken = hashToken(rawToken)
+            val expiresAt = now.plus(mailProperties.passwordResetTtl)
+
+            passwordResetTokenRepository.save(
+                PasswordResetToken(
+                    user = user,
+                    tokenHash = hashedToken,
+                    expiresAt = expiresAt,
+                ),
+            )
+
+            PasswordResetDispatch(
+                recipientEmail = user.email,
+                username = user.username,
+                resetUrl = buildResetUrl(rawToken),
+                expiresInMinutes = mailProperties.passwordResetTtl.toMinutes(),
+            )
+        }
+
+        if (dispatch != null) {
+            try {
+                emailService.sendResetPasswordEmail(
+                    recipientEmail = dispatch.recipientEmail,
+                    username = dispatch.username,
+                    resetUrl = dispatch.resetUrl,
+                    expiresInMinutes = dispatch.expiresInMinutes,
+                )
+            } catch (exception: RuntimeException) {
+                log.warn("Failed to send password reset email to {}", dispatch.recipientEmail, exception)
+            }
+        }
+
+        return ForgotPasswordResponse()
+    }
+
+    fun resetPassword(@Valid request: ResetPasswordRequest): ResetPasswordResponse {
+        transactionTemplate.executeWithoutResult {
+            val tokenHash = hashToken(request.token.trim())
+            val token = passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(tokenHash)
+                .orElseThrow(::InvalidPasswordResetTokenException)
+
+            if (token.expiresAt.isBefore(Instant.now())) {
+                throw InvalidPasswordResetTokenException()
+            }
+
+            val user = token.user ?: throw InvalidPasswordResetTokenException()
+            user.passwordHash = requireNotNull(passwordEncoder.encode(request.newPassword)) {
+                "Encoded password is missing"
+            }
+
+            val userId = requireNotNull(user.id) { "Persisted user id is missing" }
+            val usedAt = Instant.now()
+
+            passwordResetTokenRepository.findAllByUserIdAndUsedAtIsNull(userId)
+                .forEach { activeToken -> activeToken.usedAt = usedAt }
+        }
+
+        return ResetPasswordResponse()
+    }
 
     fun login(
         @Valid request: LoginRequest,
@@ -58,5 +218,44 @@ class AuthService(
     ) {
         logoutHandler.logout(servletRequest, servletResponse, authentication)
         servletResponse.status = HttpStatus.NO_CONTENT.value()
+    }
+
+    private fun buildResetUrl(rawToken: String): String {
+        val baseUrl = mailProperties.publicBaseUrl.trimEnd('/')
+        val path = if (mailProperties.resetPasswordPath.startsWith("/")) {
+            mailProperties.resetPasswordPath
+        } else {
+            "/${mailProperties.resetPasswordPath}"
+        }
+
+        return "$baseUrl$path?token=${URLEncoder.encode(rawToken, StandardCharsets.UTF_8)}"
+    }
+
+    private fun generateToken(): String {
+        val bytes = ByteArray(32)
+        secureRandom.nextBytes(bytes)
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    }
+
+    private fun hashToken(rawToken: String): String = MessageDigest.getInstance("SHA-256")
+        .digest(rawToken.toByteArray(StandardCharsets.UTF_8))
+        .joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+    private data class RegisteredUser(
+        val userId: Long,
+        val username: String,
+        val email: String,
+    )
+
+    private data class PasswordResetDispatch(
+        val recipientEmail: String,
+        val username: String,
+        val resetUrl: String,
+        val expiresInMinutes: Long,
+    )
+
+    companion object {
+        private val log = LoggerFactory.getLogger(AuthService::class.java)
+        private val secureRandom = SecureRandom()
     }
 }

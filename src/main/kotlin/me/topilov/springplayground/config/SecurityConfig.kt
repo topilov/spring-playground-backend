@@ -37,6 +37,9 @@ class SecurityConfig {
                     "/api/public/ping",
                     "/api/auth/login",
                     "/api/auth/logout",
+                    "/api/auth/register",
+                    "/api/auth/forgot-password",
+                    "/api/auth/reset-password",
                 ).permitAll()
                     .anyRequest().authenticated()
             }

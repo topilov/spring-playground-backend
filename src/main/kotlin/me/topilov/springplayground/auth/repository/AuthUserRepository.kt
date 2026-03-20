@@ -6,4 +6,7 @@ import java.util.Optional
 
 interface AuthUserRepository : JpaRepository<AuthUser, Long> {
     fun findByUsernameIgnoreCaseOrEmailIgnoreCase(username: String, email: String): Optional<AuthUser>
+    fun existsByUsernameIgnoreCase(username: String): Boolean
+    fun existsByEmailIgnoreCase(email: String): Boolean
+    fun findByEmailIgnoreCase(email: String): Optional<AuthUser>
 }
