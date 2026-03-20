@@ -4,6 +4,7 @@ Machine-readable contract: `openapi/openapi.yaml` and runtime `/v3/api-docs`.
 
 Change note for this task: `Breaking` because newly registered users must verify email before `POST /api/auth/login` succeeds.
 Change note for this task: `Non-breaking` because the forgot/reset password HTTP contract is unchanged while reset tokens now live in Redis.
+Change note for this task: `Non-breaking` because passkeys add new registration, management, and login endpoints without changing the existing password-login contract.
 
 ## POST /api/auth/register
 
@@ -394,6 +395,434 @@ curl -i \
 - CSRF is currently disabled, so no CSRF token is required for login or follow-up API calls.
 - Frontend should send login and protected requests with credentials enabled, for example `fetch(..., { credentials: 'include' })`, so the browser stores and resends `JSESSIONID`.
 - Frontend should use OpenAPI for generated request and response types, then follow this markdown doc for session-flow behavior details.
+
+## Passkey Payload Notes
+
+- Passkey request and response bodies wrap browser-generated WebAuthn JSON.
+- The `publicKey` object returned by the backend is intended to be passed to `navigator.credentials.create()` or `navigator.credentials.get()` after the frontend decodes Base64URL-encoded binary members into `Uint8Array` values.
+- The `credential` object sent back to the backend should be the frontend's JSON serialization of the browser `PublicKeyCredential` result.
+- Backend treats the WebAuthn payload as protocol data, verifies it server-side, and never exposes stored public keys or other internal credential material in management responses.
+
+## POST /api/auth/passkeys/register/options
+
+**Purpose**
+
+Start passkey registration for the currently authenticated user.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Request Body**
+
+```json
+{
+  "nickname": "MacBook Touch ID"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "nickname": "string, optional, max 100 chars when provided"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "ceremonyId": "registration-opaque-id",
+  "publicKey": {
+    "challenge": "base64url-challenge"
+  }
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `401 Unauthorized` when the session cookie is missing or invalid.
+
+**curl**
+
+```bash
+curl -i \
+  -b cookies.txt \
+  -H 'Content-Type: application/json' \
+  -d '{"nickname":"MacBook Touch ID"}' \
+  http://localhost:8080/api/auth/passkeys/register/options
+```
+
+**Notes**
+
+- Backend stores a short-lived Redis ceremony record keyed by `ceremonyId`.
+- The registration ceremony is user-bound; the finish step must be completed by the same authenticated user.
+- Ceremony state expires automatically and fails closed when missing or expired.
+
+## POST /api/auth/passkeys/register/verify
+
+**Purpose**
+
+Finish passkey registration for the currently authenticated user and persist the credential.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Request Body**
+
+```json
+{
+  "ceremonyId": "registration-opaque-id",
+  "credential": {
+    "id": "browser-generated-id",
+    "rawId": "base64url-raw-id",
+    "response": {
+      "attestationObject": "base64url-attestation-object",
+      "clientDataJSON": "base64url-client-data-json"
+    },
+    "type": "public-key"
+  },
+  "nickname": "MacBook Touch ID"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "ceremonyId": "string, required, must not be blank",
+  "credential": "object, required, browser-generated WebAuthn registration payload",
+  "nickname": "string, optional, max 100 chars when provided"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "id": 10,
+  "name": "MacBook Touch ID",
+  "createdAt": "2026-03-21T10:15:30Z",
+  "deviceHint": "platform",
+  "transports": ["internal"]
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when the ceremony is missing, expired, user-mismatched, or the WebAuthn payload is invalid.
+- `401 Unauthorized` when the session cookie is missing or invalid.
+- `409 Conflict` when the credential is already registered.
+
+**curl**
+
+```bash
+curl -i \
+  -b cookies.txt \
+  -H 'Content-Type: application/json' \
+  -d '{"ceremonyId":"registration-opaque-id","credential":{"id":"...","rawId":"...","response":{"attestationObject":"...","clientDataJSON":"..."},"type":"public-key"},"nickname":"MacBook Touch ID"}' \
+  http://localhost:8080/api/auth/passkeys/register/verify
+```
+
+**Notes**
+
+- Successful verification persists the passkey in PostgreSQL.
+- Successful verification invalidates the ceremony so it cannot be reused.
+- Duplicate credential registration is rejected explicitly with `409 Conflict`.
+
+## GET /api/auth/passkeys
+
+**Purpose**
+
+List the current authenticated user's passkeys.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Request Body**
+
+No request body.
+
+**Response Body**
+
+```json
+[
+  {
+    "id": 10,
+    "name": "Work Laptop",
+    "createdAt": "2026-03-21T10:15:30Z",
+    "lastUsedAt": "2026-03-21T12:05:00Z",
+    "deviceHint": "platform",
+    "transports": ["internal"]
+  }
+]
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `401 Unauthorized` when the session cookie is missing or invalid.
+
+**curl**
+
+```bash
+curl -i \
+  -b cookies.txt \
+  http://localhost:8080/api/auth/passkeys
+```
+
+**Notes**
+
+- Only passkeys owned by the current user are returned.
+- `lastUsedAt` is omitted until the passkey is successfully used for login.
+
+## PATCH /api/auth/passkeys/{id}
+
+**Purpose**
+
+Rename one of the current authenticated user's passkeys.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Request Body**
+
+```json
+{
+  "name": "Work Laptop"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "name": "string, required, must not be blank, max 100 chars"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "id": 10,
+  "name": "Work Laptop",
+  "createdAt": "2026-03-21T10:15:30Z",
+  "deviceHint": "platform",
+  "transports": ["internal"]
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when validation fails.
+- `401 Unauthorized` when the session cookie is missing or invalid.
+- `404 Not Found` when the passkey does not exist for the current user.
+
+**curl**
+
+```bash
+curl -i \
+  -b cookies.txt \
+  -H 'Content-Type: application/json' \
+  -X PATCH \
+  -d '{"name":"Work Laptop"}' \
+  http://localhost:8080/api/auth/passkeys/10
+```
+
+**Notes**
+
+- Users may rename only their own credentials.
+
+## DELETE /api/auth/passkeys/{id}
+
+**Purpose**
+
+Delete one of the current authenticated user's passkeys.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Request Body**
+
+No request body.
+
+**Response Body**
+
+No response body.
+
+**Typical Success Status**
+
+- `204 No Content`
+
+**Typical Error Statuses**
+
+- `401 Unauthorized` when the session cookie is missing or invalid.
+- `404 Not Found` when the passkey does not exist for the current user.
+
+**curl**
+
+```bash
+curl -i \
+  -b cookies.txt \
+  -X DELETE \
+  http://localhost:8080/api/auth/passkeys/10
+```
+
+**Notes**
+
+- Users may delete only their own credentials.
+
+## POST /api/auth/passkey-login/options
+
+**Purpose**
+
+Start an unauthenticated passkey login ceremony.
+
+**Authentication**
+
+No prior authentication required.
+
+**Request Body**
+
+```json
+{}
+```
+
+Current request shape:
+
+```json
+{
+  "usernameOrEmail": "string, optional, reserved for future login hints"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "ceremonyId": "authentication-opaque-id",
+  "publicKey": {
+    "challenge": "base64url-challenge"
+  }
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- No user-specific error is exposed at the options step.
+
+**curl**
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{}' \
+  http://localhost:8080/api/auth/passkey-login/options
+```
+
+**Notes**
+
+- Backend stores a short-lived Redis authentication ceremony keyed by `ceremonyId`.
+- The current implementation is discoverable-credential oriented, so the login options request body is empty.
+
+## POST /api/auth/passkey-login/verify
+
+**Purpose**
+
+Finish passkey login and create the normal authenticated session.
+
+**Authentication**
+
+No prior authentication required.
+
+**Request Body**
+
+```json
+{
+  "ceremonyId": "authentication-opaque-id",
+  "credential": {
+    "id": "browser-generated-id",
+    "rawId": "base64url-raw-id",
+    "response": {
+      "authenticatorData": "base64url-authenticator-data",
+      "clientDataJSON": "base64url-client-data-json",
+      "signature": "base64url-signature"
+    },
+    "type": "public-key"
+  }
+}
+```
+
+Current request shape:
+
+```json
+{
+  "ceremonyId": "string, required, must not be blank",
+  "credential": "object, required, browser-generated WebAuthn assertion payload"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "authenticated": true,
+  "userId": 1,
+  "username": "demo",
+  "email": "demo@example.com",
+  "role": "USER"
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when the ceremony is missing or expired.
+- `401 Unauthorized` when the assertion is invalid or login is not allowed.
+
+**curl**
+
+```bash
+curl -i \
+  -c cookies.txt \
+  -H 'Content-Type: application/json' \
+  -d '{"ceremonyId":"authentication-opaque-id","credential":{"id":"...","rawId":"...","response":{"authenticatorData":"...","clientDataJSON":"...","signature":"..."},"type":"public-key"}}' \
+  http://localhost:8080/api/auth/passkey-login/verify
+```
+
+**Notes**
+
+- Successful passkey login returns the exact same authenticated response body shape as password login.
+- Successful passkey login establishes the normal `JSESSIONID` session through the same backend session-login path used by password login.
+- Successful login updates `lastUsedAt` for the credential and invalidates the one-time ceremony state.
 
 ## POST /api/auth/logout
 

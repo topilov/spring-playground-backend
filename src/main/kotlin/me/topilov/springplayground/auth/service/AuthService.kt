@@ -34,11 +34,8 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
-import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.core.context.SecurityContextHolderStrategy
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler
-import org.springframework.security.web.context.SecurityContextRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
@@ -51,7 +48,7 @@ import java.time.Instant
 @Validated
 class AuthService(
     private val authenticationManager: AuthenticationManager,
-    private val securityContextRepository: SecurityContextRepository,
+    private val sessionLoginService: SessionLoginService,
     private val authUserRepository: AuthUserRepository,
     private val userProfileRepository: UserProfileRepository,
     private val passwordResetTokenStore: PasswordResetTokenStore,
@@ -61,7 +58,6 @@ class AuthService(
     private val mailProperties: MailProperties,
     transactionManager: PlatformTransactionManager,
 ) {
-    private val securityContextHolderStrategy: SecurityContextHolderStrategy = SecurityContextHolder.getContextHolderStrategy()
     private val logoutHandler = SecurityContextLogoutHandler()
     private val transactionTemplate = TransactionTemplate(transactionManager)
 
@@ -218,28 +214,11 @@ class AuthService(
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
     ): LoginResponse {
-        servletRequest.getSession(false)?.invalidate()
-
         val authentication = authenticationManager.authenticate(
             UsernamePasswordAuthenticationToken.unauthenticated(request.usernameOrEmail, request.password),
         )
 
-        val principal = authentication.principal as AppUserPrincipal
-        if (!principal.emailVerified) {
-            throw EmailNotVerifiedException()
-        }
-
-        val context = securityContextHolderStrategy.createEmptyContext()
-        context.authentication = authentication
-        securityContextHolderStrategy.context = context
-        securityContextRepository.saveContext(context, servletRequest, servletResponse)
-
-        return LoginResponse(
-            userId = principal.id,
-            username = principal.usernameValue,
-            email = principal.email,
-            role = principal.role.name,
-        )
+        return sessionLoginService.login(authentication, servletRequest, servletResponse)
     }
 
     fun logout(

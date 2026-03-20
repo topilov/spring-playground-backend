@@ -47,6 +47,8 @@ class SecurityConfig {
                     "/swagger-ui/**",
                     "/api/public/ping",
                     "/api/auth/login",
+                    "/api/auth/passkey-login/options",
+                    "/api/auth/passkey-login/verify",
                     "/api/auth/logout",
                     "/api/auth/register",
                     "/api/auth/verify-email",

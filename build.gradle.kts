@@ -31,6 +31,7 @@ repositories {
 }
 
 dependencies {
+    implementation("com.yubico:webauthn-server-core:2.8.1")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-data-redis")

@@ -34,6 +34,8 @@ class AuthUser(
     var enabled: Boolean = true,
     @Column(name = "email_verified", nullable = false)
     var emailVerified: Boolean = false,
+    @Column(name = "webauthn_user_handle", unique = true, length = 64)
+    var webauthnUserHandle: String? = null,
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.EPOCH,
     @Column(name = "updated_at", nullable = false)
