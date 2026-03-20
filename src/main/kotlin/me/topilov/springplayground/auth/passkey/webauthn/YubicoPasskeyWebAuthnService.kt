@@ -23,8 +23,6 @@ class YubicoPasskeyWebAuthnService(
     private val relyingParty: RelyingParty,
     private val passkeyProperties: PasskeyProperties,
 ) : PasskeyWebAuthnService {
-    private val objectMapper = jacksonObjectMapper()
-
     override fun beginRegistration(user: PasskeyUserIdentity, existingCredentialIds: List<String>): StartedPasskeyRegistration {
         val registrationRequest = relyingParty.startRegistration(
             StartRegistrationOptions.builder()
@@ -47,7 +45,7 @@ class YubicoPasskeyWebAuthnService(
 
         return StartedPasskeyRegistration(
             requestJson = registrationRequest.toJson(),
-            publicKeyJson = objectMapper.readValue(registrationRequest.toCredentialsCreateJson(), Map::class.java) as Map<String, Any?>,
+            credentialCreationJson = registrationRequest.toCredentialsCreateJson(),
         )
     }
 
@@ -85,7 +83,7 @@ class YubicoPasskeyWebAuthnService(
 
         return StartedPasskeyAuthentication(
             requestJson = assertionRequest.toJson(),
-            publicKeyJson = objectMapper.readValue(assertionRequest.toCredentialsGetJson(), Map::class.java) as Map<String, Any?>,
+            credentialRequestJson = assertionRequest.toCredentialsGetJson(),
         )
     }
 

@@ -207,6 +207,9 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.ceremonyId").isString)
             .andExpect(jsonPath("$.publicKey.challenge").isString)
+            .andExpect(jsonPath("$.publicKey.publicKey").doesNotExist())
+            .andExpect(jsonPath("$.publicKey.user.id").isString)
+            .andExpect(jsonPath("$.publicKey.excludeCredentials[0].id").isString)
             .andReturn()
 
         val ceremonyId = jsonField(optionsResult, "ceremonyId")
@@ -297,6 +300,8 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.ceremonyId").isString)
             .andExpect(jsonPath("$.publicKey.challenge").isString)
+            .andExpect(jsonPath("$.publicKey.publicKey").doesNotExist())
+            .andExpect(jsonPath("$.publicKey.allowCredentials[0].id").isString)
             .andReturn()
 
         val ceremonyId = jsonField(optionsResult, "ceremonyId")

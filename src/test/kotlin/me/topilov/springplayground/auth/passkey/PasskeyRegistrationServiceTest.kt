@@ -31,6 +31,7 @@ class PasskeyRegistrationServiceTest {
         passkeyCeremonyStore = passkeyCeremonyStore,
         passkeyWebAuthnService = passkeyWebAuthnService,
         passkeyManagementService = PasskeyManagementService(passkeyCredentialRepository),
+        passkeyOptionsMapper = PasskeyOptionsMapper(),
     )
 
     @Test
@@ -80,7 +81,25 @@ class PasskeyRegistrationServiceTest {
         passkeyCeremonyStore.nextCeremonyId = "ceremony-1"
         passkeyWebAuthnService.startedRegistration = StartedPasskeyRegistration(
             requestJson = """{"challenge":"abc"}""",
-            publicKeyJson = mapOf("challenge" to "abc"),
+            credentialCreationJson = """
+                {
+                  "publicKey": {
+                    "challenge": "abc",
+                    "rp": {
+                      "name": "Spring Playground Test",
+                      "id": "localhost"
+                    },
+                    "user": {
+                      "id": "generated-user-handle",
+                      "name": "demo",
+                      "displayName": "demo"
+                    },
+                    "pubKeyCredParams": [
+                      { "type": "public-key", "alg": -7 }
+                    ]
+                  }
+                }
+            """.trimIndent(),
         )
 
         service.startRegistration(
@@ -99,7 +118,25 @@ class PasskeyRegistrationServiceTest {
 private class FakeUnitPasskeyWebAuthnService : PasskeyWebAuthnService {
     var startedRegistration: StartedPasskeyRegistration = StartedPasskeyRegistration(
         requestJson = """{"challenge":"default"}""",
-        publicKeyJson = mapOf("challenge" to "default"),
+        credentialCreationJson = """
+            {
+              "publicKey": {
+                "challenge": "default",
+                "rp": {
+                  "name": "Spring Playground Test",
+                  "id": "localhost"
+                },
+                "user": {
+                  "id": "default-user-handle",
+                  "name": "demo",
+                  "displayName": "demo"
+                },
+                "pubKeyCredParams": [
+                  { "type": "public-key", "alg": -7 }
+                ]
+              }
+            }
+        """.trimIndent(),
     )
     var finishedRegistration: FinishedPasskeyRegistration = FinishedPasskeyRegistration(
         credentialId = "default-credential",
