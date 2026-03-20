@@ -147,6 +147,86 @@ APP_RESET_PASSWORD_PATH=/reset-password \
 ./gradlew build
 ```
 
+## Contract documentation
+
+This repository publishes the HTTP API contract in two forms:
+
+- Human-readable docs in `docs/contracts/*`
+- Machine-readable OpenAPI in `openapi/openapi.yaml`
+
+Frontend should use the OpenAPI contract for generated clients and types, then use the markdown contract docs for session auth flow, cookies, CSRF notes, and behavior details.
+
+## GitHub Actions
+
+### CI
+
+Workflow: `.github/workflows/ci.yml`
+
+- Runs on every `push`
+- Runs on every `pull_request`
+- Uses Java `25`, matching the project toolchain
+- Executes `./gradlew build`
+
+### Contract site and GitHub Pages
+
+Workflow: `.github/workflows/contract-site.yml`
+
+- Runs on pushes to `main`
+- Can also be triggered manually with `workflow_dispatch`
+- Starts PostgreSQL
+- Starts the backend with the repository default configuration
+- Waits for `http://127.0.0.1:8080/actuator/health`
+- Fetches runtime OpenAPI from:
+  - `/v3/api-docs`
+  - `/v3/api-docs.yaml`
+- Publishes a small GitHub Pages contract site containing:
+  - generated `openapi/openapi.json`
+  - generated `openapi/openapi.yaml`
+  - `docs/contracts/*`
+  - `docs/openapi.md`
+- Publishes both the machine-readable OpenAPI contract and the human-readable markdown contract docs
+- Shows `backend.log` in workflow output if startup or OpenAPI export fails
+- Uploads `backend.log` as a workflow artifact on failure
+
+To use the Pages deployment workflow, set the repository Pages source to `GitHub Actions` in GitHub settings.
+
+### Pages URL structure
+
+The published site will typically live at:
+
+```text
+https://<owner>.github.io/<repo>/
+```
+
+Published contract URLs under that site:
+
+```text
+https://<owner>.github.io/<repo>/openapi/openapi.yaml
+https://<owner>.github.io/<repo>/openapi/openapi.json
+https://<owner>.github.io/<repo>/docs/contracts/auth.md
+https://<owner>.github.io/<repo>/docs/contracts/profile.md
+https://<owner>.github.io/<repo>/docs/contracts/public.md
+https://<owner>.github.io/<repo>/docs/openapi.md
+```
+
+### Frontend usage
+
+Frontend should consume the published OpenAPI contract from GitHub Pages for generated types and API clients.
+Frontend should not depend on a locally running backend instance to discover the contract.
+
+Recommended source:
+
+```text
+https://<owner>.github.io/<repo>/openapi/openapi.yaml
+```
+
+Use the markdown docs as the companion reference for:
+
+- login and logout flow
+- session cookie handling
+- authenticated endpoint behavior
+- practical integration notes not captured cleanly in OpenAPI
+
 ## Demo account
 
 - Username: `demo`

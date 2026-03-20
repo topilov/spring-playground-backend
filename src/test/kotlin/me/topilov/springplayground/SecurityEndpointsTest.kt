@@ -70,6 +70,23 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     }
 
     @Test
+    fun `openapi endpoint is public and exposes current api paths`() {
+        mockMvc.perform(get("/v3/api-docs"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.openapi").exists())
+            .andExpect(jsonPath("$.paths['/api/public/ping']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/login']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/logout']").exists())
+            .andExpect(jsonPath("$.paths['/api/profile/me']").exists())
+    }
+
+    @Test
+    fun `openapi yaml endpoint is public`() {
+        mockMvc.perform(get("/v3/api-docs.yaml"))
+            .andExpect(status().isOk)
+    }
+
+    @Test
     fun `profile endpoint requires authentication`() {
         mockMvc.perform(get("/api/profile/me"))
             .andExpect(status().isUnauthorized)

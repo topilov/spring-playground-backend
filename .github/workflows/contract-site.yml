@@ -1,0 +1,132 @@
+name: Contract Site
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  build-site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: spring_playground
+          POSTGRES_USER: spring
+          POSTGRES_PASSWORD: spring
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U spring -d spring_playground"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Generate contract site assets
+        run: |
+          set -euo pipefail
+
+          mkdir -p site/openapi site/docs/contracts
+          cp docs/site/index.html site/index.html
+          cp docs/contracts/*.md site/docs/contracts/
+          cp docs/openapi.md site/docs/openapi.md
+          touch site/.nojekyll
+
+          ./gradlew bootRun > backend.log 2>&1 &
+          APP_PID=$!
+
+          show_backend_log() {
+            echo "========== backend.log =========="
+            cat backend.log
+            echo "================================="
+          }
+
+          cleanup() {
+            if kill -0 "$APP_PID" 2>/dev/null; then
+              kill "$APP_PID" || true
+              wait "$APP_PID" || true
+            fi
+          }
+
+          trap cleanup EXIT
+
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8080/actuator/health > /tmp/actuator-health.json; then
+              break
+            fi
+
+            if [ "$attempt" -eq 60 ]; then
+              echo "Backend did not become healthy in time."
+              show_backend_log
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if ! curl --fail --silent http://127.0.0.1:8080/v3/api-docs > site/openapi/openapi.json; then
+            echo "Failed to fetch /v3/api-docs."
+            show_backend_log
+            exit 1
+          fi
+
+          if ! curl --fail --silent http://127.0.0.1:8080/v3/api-docs.yaml > site/openapi/openapi.yaml; then
+            echo "Failed to fetch /v3/api-docs.yaml."
+            show_backend_log
+            exit 1
+          fi
+
+      - name: Upload backend log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-site-backend-log
+          path: backend.log
+          if-no-files-found: ignore
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build-site
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
