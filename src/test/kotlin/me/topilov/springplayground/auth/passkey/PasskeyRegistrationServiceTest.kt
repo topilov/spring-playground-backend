@@ -1,6 +1,7 @@
 package me.topilov.springplayground.auth.passkey
 
 import me.topilov.springplayground.auth.domain.AuthUser
+import me.topilov.springplayground.auth.passkey.PasskeyOptionsMapper
 import me.topilov.springplayground.auth.passkey.ceremony.RegistrationPasskeyCeremony
 import me.topilov.springplayground.auth.passkey.exception.DuplicatePasskeyCredentialException
 import me.topilov.springplayground.auth.passkey.repository.PasskeyCredentialRepository

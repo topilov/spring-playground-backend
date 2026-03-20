@@ -1,6 +1,4 @@
 package me.topilov.springplayground.auth.passkey.webauthn
-
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.yubico.webauthn.AssertionRequest
 import com.yubico.webauthn.FinishAssertionOptions
 import com.yubico.webauthn.FinishRegistrationOptions
