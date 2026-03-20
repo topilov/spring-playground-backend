@@ -2,7 +2,8 @@ openapi: 3.1.0
 info:
   title: Spring Playground Backend API
   description: Session-based auth/profile/public HTTP API. This OpenAPI schema is
-    the machine-readable contract for frontend integration.
+    the machine-readable contract for frontend integration. Browser clients should
+    send credentialed requests so the JSESSIONID session cookie is stored and resent.
   version: 0.0.1-SNAPSHOT
 servers:
 - url: http://localhost:8080
@@ -144,7 +145,8 @@ paths:
       - Auth
       summary: Login
       description: Authenticates by username or email and creates a server-side session
-        backed by the JSESSIONID cookie.
+        backed by the JSESSIONID cookie. Browser-based cross-origin clients must
+        send the request with credentials enabled.
       operationId: login
       requestBody:
         content:
@@ -162,6 +164,16 @@ paths:
         "200":
           description: Successful login. The response body describes the authenticated
             user and the response sets JSESSIONID.
+          headers:
+            Access-Control-Allow-Origin:
+              description: Returned for allowed browser origins on cross-origin requests.
+              schema:
+                type: string
+            Access-Control-Allow-Credentials:
+              description: Returned as true for allowed browser origins so the session
+                cookie can be stored by the client.
+              schema:
+                type: string
           content:
             application/json:
               schema:

@@ -120,6 +120,7 @@ The application uses Spring Mail for delivery and Thymeleaf templates from `src/
 
 Available properties:
 
+- `APP_CORS_ALLOWED_ORIGINS`
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_USERNAME`

@@ -263,7 +263,7 @@ curl -i \
 - Current cookie behavior is session-based, `HttpOnly`, and `SameSite=Lax`.
 - Default non-local configuration also marks the session cookie `Secure`; the `local` and `test` profiles disable `Secure` so HTTP development and tests still work.
 - CSRF is currently disabled, so no CSRF token is required for login or follow-up API calls.
-- Frontend should persist and resend the session cookie on protected requests.
+- Frontend should send login and protected requests with credentials enabled, for example `fetch(..., { credentials: 'include' })`, so the browser stores and resends `JSESSIONID`.
 - Frontend should use OpenAPI for generated request and response types, then follow this markdown doc for session-flow behavior details.
 
 ## POST /api/auth/logout
