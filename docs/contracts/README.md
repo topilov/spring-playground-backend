@@ -43,5 +43,6 @@
 ## Current Contract Files
 
 - `auth.md`
+- `auth-api.md` compatibility alias pointing to `auth.md`
 - `profile.md`
 - `public.md`

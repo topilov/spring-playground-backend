@@ -21,6 +21,11 @@ server:
         secure: false
 
 app:
+  passkeys:
+    rp-id: localhost
+    rp-name: Spring Playground Test
+    origins: http://localhost:3000,http://localhost:4173,http://localhost:5173
+    ceremony-ttl: PT5M
   mail:
     from: test-no-reply@example.com
     app-name: Spring Playground Test

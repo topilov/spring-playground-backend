@@ -6,6 +6,10 @@ import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedExcepti
 import me.topilov.springplayground.auth.exception.EmailNotVerifiedException
 import me.topilov.springplayground.auth.exception.InvalidEmailVerificationTokenException
 import me.topilov.springplayground.auth.exception.InvalidPasswordResetTokenException
+import me.topilov.springplayground.auth.passkey.exception.DuplicatePasskeyCredentialException
+import me.topilov.springplayground.auth.passkey.exception.InvalidPasskeyCeremonyException
+import me.topilov.springplayground.auth.passkey.exception.PasskeyAuthenticationFailedException
+import me.topilov.springplayground.auth.passkey.exception.PasskeyNotFoundException
 import me.topilov.springplayground.shared.dto.SimpleErrorResponse
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -29,6 +33,26 @@ class AuthExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleInvalidEmailVerificationToken(exception: InvalidEmailVerificationTokenException): ErrorResponse =
         ErrorResponse(error = exception.message ?: "Bad request")
+
+    @ExceptionHandler(InvalidPasskeyCeremonyException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleInvalidPasskeyCeremony(exception: InvalidPasskeyCeremonyException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Bad request")
+
+    @ExceptionHandler(DuplicatePasskeyCredentialException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleDuplicatePasskeyCredential(exception: DuplicatePasskeyCredentialException): SimpleErrorResponse =
+        SimpleErrorResponse(error = exception.message ?: "Conflict")
+
+    @ExceptionHandler(PasskeyNotFoundException::class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun handlePasskeyNotFound(exception: PasskeyNotFoundException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Not found")
+
+    @ExceptionHandler(PasskeyAuthenticationFailedException::class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    fun handlePasskeyAuthenticationFailed(exception: PasskeyAuthenticationFailedException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Unauthorized")
 
     @ExceptionHandler(EmailNotVerifiedException::class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)

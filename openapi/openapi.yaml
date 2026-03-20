@@ -252,6 +252,216 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/auth/passkeys/register/options:
+    post:
+      tags:
+      - Auth
+      summary: Start passkey registration
+      description: Starts WebAuthn registration for the current authenticated user.
+      operationId: startRegistration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyRegistrationOptionsRequest"
+        required: true
+      responses:
+        "200":
+          description: Passkey registration options.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasskeyRegistrationOptionsResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/auth/passkeys/register/verify:
+    post:
+      tags:
+      - Auth
+      summary: Finish passkey registration
+      description: Verifies a WebAuthn registration response and persists the passkey.
+      operationId: finishRegistration
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyRegistrationVerifyRequest"
+        required: true
+      responses:
+        "200":
+          description: Registered passkey summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasskeySummaryResponse"
+        "400":
+          description: Ceremony is invalid or expired, or the WebAuthn payload is malformed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "409":
+          description: Credential is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/auth/passkeys:
+    get:
+      tags:
+      - Auth
+      summary: List passkeys
+      description: Lists the current authenticated user's passkeys.
+      operationId: listPasskeys
+      responses:
+        "200":
+          description: Current user's passkeys.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PasskeySummaryResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/auth/passkeys/{id}:
+    patch:
+      tags:
+      - Auth
+      summary: Rename passkey
+      description: Renames a passkey owned by the current authenticated user.
+      operationId: renamePasskey
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RenamePasskeyRequest"
+        required: true
+      responses:
+        "200":
+          description: Updated passkey summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasskeySummaryResponse"
+        "400":
+          description: Validation failed for the submitted rename payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Passkey was not found for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - sessionCookie: []
+    delete:
+      tags:
+      - Auth
+      summary: Delete passkey
+      description: Deletes a passkey owned by the current authenticated user.
+      operationId: deletePasskey
+      parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          format: int64
+      responses:
+        "204":
+          description: Passkey deleted.
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Passkey was not found for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/auth/passkey-login/options:
+    post:
+      tags:
+      - Auth
+      summary: Start passkey login
+      description: Starts an unauthenticated passkey login ceremony.
+      operationId: startPasskeyLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyLoginOptionsRequest"
+        required: true
+      responses:
+        "200":
+          description: Passkey login options.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PasskeyLoginOptionsResponse"
+  /api/auth/passkey-login/verify:
+    post:
+      tags:
+      - Auth
+      summary: Finish passkey login
+      description: Verifies a WebAuthn assertion and creates the normal authenticated session.
+      operationId: finishPasskeyLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasskeyLoginVerifyRequest"
+        required: true
+      responses:
+        "200":
+          description: Successful passkey login. The response body and session cookie behavior match password login.
+          headers:
+            Access-Control-Allow-Origin:
+              description: Returned for allowed browser origins on cross-origin requests.
+              schema:
+                type: string
+            Access-Control-Allow-Credentials:
+              description: Returned as true for allowed browser origins so the session cookie can be stored by the client.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Ceremony is invalid or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Assertion is invalid or login is not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/auth/forgot-password:
     post:
       tags:
@@ -300,6 +510,14 @@ components:
     SimpleErrorResponse:
       type: object
       description: Simple application-defined error response body.
+      properties:
+        error:
+          type: string
+      required:
+      - error
+    ErrorResponse:
+      type: object
+      description: Application-defined auth error response body.
       properties:
         error:
           type: string
@@ -451,6 +669,10 @@ components:
           type: boolean
       required:
       - verified
+    FreeFormWebAuthnObject:
+      type: object
+      additionalProperties: true
+      description: Browser-generated WebAuthn JSON payload forwarded between frontend and backend.
     ResendVerificationEmailRequest:
       type: object
       properties:
@@ -468,6 +690,119 @@ components:
           type: boolean
       required:
       - accepted
+    PasskeyRegistrationOptionsRequest:
+      type: object
+      description: Authenticated passkey registration request.
+      properties:
+        nickname:
+          type: string
+          example: MacBook Touch ID
+          maxLength: 100
+      required: []
+    PasskeyRegistrationOptionsResponse:
+      type: object
+      description: Public key credential creation options for authenticated passkey registration.
+      properties:
+        ceremonyId:
+          type: string
+          example: ceremony-id
+        publicKey:
+          $ref: "#/components/schemas/FreeFormWebAuthnObject"
+      required:
+      - ceremonyId
+      - publicKey
+    PasskeyRegistrationVerifyRequest:
+      type: object
+      description: Browser passkey registration result forwarded to the backend.
+      properties:
+        ceremonyId:
+          type: string
+          example: ceremony-id
+          minLength: 1
+        credential:
+          $ref: "#/components/schemas/FreeFormWebAuthnObject"
+        nickname:
+          type: string
+          example: MacBook Touch ID
+          maxLength: 100
+      required:
+      - ceremonyId
+      - credential
+    PasskeySummaryResponse:
+      type: object
+      description: User-facing passkey summary.
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        name:
+          type: string
+          example: Work Laptop
+        createdAt:
+          type: string
+          format: date-time
+          example: 2026-03-21T10:15:30Z
+        lastUsedAt:
+          type: string
+          format: date-time
+          example: 2026-03-21T12:05:00Z
+        deviceHint:
+          type: string
+          example: platform
+        transports:
+          type: array
+          items:
+            type: string
+      required:
+      - createdAt
+      - id
+      - name
+      - transports
+    RenamePasskeyRequest:
+      type: object
+      description: Passkey rename request.
+      properties:
+        name:
+          type: string
+          example: Work Laptop
+          maxLength: 100
+          minLength: 1
+      required:
+      - name
+    PasskeyLoginOptionsRequest:
+      type: object
+      description: Passkey login options request.
+      properties:
+        usernameOrEmail:
+          type: string
+          description: Reserved for future login hints.
+      required: []
+    PasskeyLoginOptionsResponse:
+      type: object
+      description: Public key credential request options for passkey login.
+      properties:
+        ceremonyId:
+          type: string
+          example: ceremony-id
+        publicKey:
+          $ref: "#/components/schemas/FreeFormWebAuthnObject"
+      required:
+      - ceremonyId
+      - publicKey
+    PasskeyLoginVerifyRequest:
+      type: object
+      description: Browser passkey assertion forwarded to the backend for login.
+      properties:
+        ceremonyId:
+          type: string
+          example: ceremony-id
+          minLength: 1
+        credential:
+          $ref: "#/components/schemas/FreeFormWebAuthnObject"
+      required:
+      - ceremonyId
+      - credential
     LoginRequest:
       type: object
       description: Credentials used for session-based login.

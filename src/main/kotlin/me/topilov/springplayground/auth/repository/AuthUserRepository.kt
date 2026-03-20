@@ -9,4 +9,5 @@ interface AuthUserRepository : JpaRepository<AuthUser, Long> {
     fun existsByUsernameIgnoreCase(username: String): Boolean
     fun existsByEmailIgnoreCase(email: String): Boolean
     fun findByEmailIgnoreCase(email: String): Optional<AuthUser>
+    fun findByWebauthnUserHandle(webauthnUserHandle: String): Optional<AuthUser>
 }

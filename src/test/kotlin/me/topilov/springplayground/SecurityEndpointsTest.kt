@@ -1,5 +1,6 @@
 package me.topilov.springplayground
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.mail.Multipart
 import jakarta.mail.internet.MimeMessage
 import me.topilov.springplayground.auth.InMemoryEmailVerificationTokenStore
@@ -8,6 +9,8 @@ import me.topilov.springplayground.auth.RecordingJavaMailSender
 import me.topilov.springplayground.auth.TestEmailVerificationConfiguration
 import me.topilov.springplayground.auth.TestMailConfiguration
 import me.topilov.springplayground.auth.TestPasswordResetConfiguration
+import me.topilov.springplayground.auth.passkey.InMemoryPasskeyCeremonyStore
+import me.topilov.springplayground.auth.passkey.TestPasskeyConfiguration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
@@ -22,8 +25,12 @@ import org.springframework.mock.web.MockHttpSession
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
 import org.springframework.test.context.jdbc.Sql
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.MvcResult
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -35,9 +42,16 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 @SpringBootTest
-@Import(TestMailConfiguration::class, TestEmailVerificationConfiguration::class, TestPasswordResetConfiguration::class)
+@Import(
+    TestMailConfiguration::class,
+    TestEmailVerificationConfiguration::class,
+    TestPasswordResetConfiguration::class,
+    TestPasskeyConfiguration::class,
+)
 @Sql(
     statements = [
+        "DELETE FROM auth_passkey_credential",
+        "UPDATE auth_user SET webauthn_user_handle = NULL",
         "UPDATE auth_user SET password_hash = '\$2y\$10\$R51kCmlq52SEJcVep3uDtOxTXp0r9jPwGa5oQQvRuMQA84PVwCjrK', updated_at = CURRENT_TIMESTAMP WHERE id = 1",
         "UPDATE user_profile SET display_name = 'Demo User', bio = 'Session-backed example profile', updated_at = CURRENT_TIMESTAMP WHERE user_id = 1",
     ],
@@ -61,6 +75,9 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     @Autowired
     lateinit var inMemoryPasswordResetTokenStore: InMemoryPasswordResetTokenStore
 
+    @Autowired
+    lateinit var inMemoryPasskeyCeremonyStore: InMemoryPasskeyCeremonyStore
+
     lateinit var mockMvc: MockMvc
 
     @BeforeEach
@@ -68,6 +85,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         recordingJavaMailSender.clear()
         inMemoryEmailVerificationTokenStore.clear()
         inMemoryPasswordResetTokenStore.clear()
+        inMemoryPasskeyCeremonyStore.clear()
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
             .apply<DefaultMockMvcBuilder>(springSecurity())
             .build()
@@ -95,6 +113,11 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(jsonPath("$.paths['/api/public/ping']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/login']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/logout']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/passkeys']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/passkeys/register/options']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/passkeys/register/verify']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/passkey-login/options']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/passkey-login/verify']").exists())
             .andExpect(jsonPath("$.paths['/api/profile/me']").exists())
             .andExpect(jsonPath("$.paths['/api/public/ping'].get.responses['400']").doesNotExist())
             .andExpect(jsonPath("$.paths['/api/public/ping'].get.responses['409']").doesNotExist())
@@ -169,6 +192,328 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
         mockMvc.perform(post("/api/auth/logout").session(session))
             .andExpect(status().isNoContent)
+    }
+
+    @Test
+    fun `authenticated user can register list rename and delete passkeys`() {
+        val session = loginSession("demo", "demo-password")
+
+        val optionsResult = mockMvc.perform(
+            post("/api/auth/passkeys/register/options")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"nickname":"MacBook Touch ID"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.ceremonyId").isString)
+            .andExpect(jsonPath("$.publicKey.challenge").isString)
+            .andReturn()
+
+        val ceremonyId = jsonField(optionsResult, "ceremonyId")
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "ceremonyId":"$ceremonyId",
+                      "credential":{
+                        "credentialId":"demo-passkey-1",
+                        "label":"MacBook Touch ID"
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.name").value("MacBook Touch ID"))
+            .andExpect(jsonPath("$.createdAt").isString)
+            .andExpect(jsonPath("$.lastUsedAt").doesNotExist())
+
+        val listResult = mockMvc.perform(get("/api/auth/passkeys").session(session))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].name").value("MacBook Touch ID"))
+            .andReturn()
+
+        val passkeyId = jsonField(listResult, "0.id")
+
+        mockMvc.perform(
+            patch("/api/auth/passkeys/$passkeyId")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Work Laptop"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.name").value("Work Laptop"))
+
+        mockMvc.perform(delete("/api/auth/passkeys/$passkeyId").session(session))
+            .andExpect(status().isNoContent)
+
+        mockMvc.perform(get("/api/auth/passkeys").session(session))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$").isEmpty)
+    }
+
+    @Test
+    fun `passkey login creates same authenticated session shape as password login`() {
+        val authenticatedSession = loginSession("demo", "demo-password")
+
+        val registrationOptions = mockMvc.perform(
+            post("/api/auth/passkeys/register/options")
+                .session(authenticatedSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"nickname":"Demo Login Passkey"}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        val registrationCeremonyId = jsonField(registrationOptions, "ceremonyId")
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(authenticatedSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "ceremonyId":"$registrationCeremonyId",
+                      "credential":{
+                        "credentialId":"demo-login-passkey",
+                        "label":"Demo Login Passkey"
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+
+        val optionsResult = mockMvc.perform(
+            post("/api/auth/passkey-login/options")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.ceremonyId").isString)
+            .andExpect(jsonPath("$.publicKey.challenge").isString)
+            .andReturn()
+
+        val ceremonyId = jsonField(optionsResult, "ceremonyId")
+
+        val verifyResult = mockMvc.perform(
+            post("/api/auth/passkey-login/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "ceremonyId":"$ceremonyId",
+                      "credential":{
+                        "credentialId":"demo-login-passkey"
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.authenticated").value(true))
+            .andExpect(jsonPath("$.userId").value(1))
+            .andExpect(jsonPath("$.username").value("demo"))
+            .andExpect(jsonPath("$.email").value("demo@example.com"))
+            .andExpect(jsonPath("$.role").value("USER"))
+            .andReturn()
+
+        assertThat(verifyResult.request.session).isInstanceOf(MockHttpSession::class.java)
+    }
+
+    @Test
+    fun `passkey ceremony cannot be reused after successful verify`() {
+        val session = loginSession("demo", "demo-password")
+
+        val registrationOptions = mockMvc.perform(
+            post("/api/auth/passkeys/register/options")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"nickname":"Reusable Passkey"}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        val ceremonyId = jsonField(registrationOptions, "ceremonyId")
+        val payload = """
+            {
+              "ceremonyId":"$ceremonyId",
+              "credential":{
+                "credentialId":"single-use-passkey",
+                "label":"Reusable Passkey"
+              }
+            }
+        """.trimIndent()
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload),
+        )
+            .andExpect(status().isOk)
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(payload),
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `registration verify rejects ceremony from a different authenticated user`() {
+        val demoSession = loginSession("demo", "demo-password")
+        val otherSession = createVerifiedUserAndLogin()
+
+        val optionsResult = mockMvc.perform(
+            post("/api/auth/passkeys/register/options")
+                .session(demoSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"nickname":"Bound Passkey"}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        val ceremonyId = jsonField(optionsResult, "ceremonyId")
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(otherSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "ceremonyId":"$ceremonyId",
+                      "credential":{
+                        "credentialId":"wrong-user-passkey"
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `user cannot rename or delete another users passkey`() {
+        val demoSession = loginSession("demo", "demo-password")
+        val optionsResult = mockMvc.perform(
+            post("/api/auth/passkeys/register/options")
+                .session(demoSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"nickname":"Protected Passkey"}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        val ceremonyId = jsonField(optionsResult, "ceremonyId")
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(demoSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "ceremonyId":"$ceremonyId",
+                      "credential":{
+                        "credentialId":"protected-passkey"
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+
+        val passkeyId = jsonField(
+            mockMvc.perform(get("/api/auth/passkeys").session(demoSession))
+                .andExpect(status().isOk)
+                .andReturn(),
+            "0.id",
+        )
+        val otherSession = createVerifiedUserAndLogin()
+
+        mockMvc.perform(
+            patch("/api/auth/passkeys/$passkeyId")
+                .session(otherSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Stolen"}"""),
+        )
+            .andExpect(status().isNotFound)
+
+        mockMvc.perform(delete("/api/auth/passkeys/$passkeyId").session(otherSession))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `duplicate passkey credential registration returns conflict`() {
+        val firstSession = loginSession("demo", "demo-password")
+        val secondSession = createVerifiedUserAndLogin()
+
+        val firstCeremonyId = jsonField(
+            mockMvc.perform(
+                post("/api/auth/passkeys/register/options")
+                    .session(firstSession)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"nickname":"Primary"}"""),
+            )
+                .andExpect(status().isOk)
+                .andReturn(),
+            "ceremonyId",
+        )
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(firstSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "ceremonyId":"$firstCeremonyId",
+                      "credential":{
+                        "credentialId":"duplicate-passkey"
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isOk)
+
+        val secondCeremonyId = jsonField(
+            mockMvc.perform(
+                post("/api/auth/passkeys/register/options")
+                    .session(secondSession)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"nickname":"Secondary"}"""),
+            )
+                .andExpect(status().isOk)
+                .andReturn(),
+            "ceremonyId",
+        )
+
+        mockMvc.perform(
+            post("/api/auth/passkeys/register/verify")
+                .session(secondSession)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "ceremonyId":"$secondCeremonyId",
+                      "credential":{
+                        "credentialId":"duplicate-passkey"
+                      }
+                    }
+                    """.trimIndent(),
+                ),
+        )
+            .andExpect(status().isConflict)
     }
 
     @Test
@@ -502,4 +847,60 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     }
 
     private fun uniqueSuffix(): String = System.nanoTime().toString()
+
+    private fun loginSession(usernameOrEmail: String, password: String): MockHttpSession =
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"$usernameOrEmail","password":"$password"}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+            .request
+            .session as MockHttpSession
+
+    private fun createVerifiedUserAndLogin(): MockHttpSession {
+        val unique = uniqueSuffix()
+        val username = "passkey-user-$unique"
+        val email = "passkey-user-$unique@example.com"
+        val password = "passkey-password"
+
+        mockMvc.perform(
+            post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username","email":"$email","password":"$password"}"""),
+        )
+            .andExpect(status().isOk)
+
+        val token = extractToken(recordingJavaMailSender.sentMessages().single())
+        recordingJavaMailSender.clear()
+
+        mockMvc.perform(
+            post("/api/auth/verify-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"token":"$token"}"""),
+        )
+            .andExpect(status().isOk)
+
+        return loginSession(email, password)
+    }
+
+    private fun jsonField(result: MvcResult, path: String): String {
+        val root = objectMapper.readTree(result.response.contentAsString)
+        var node = root
+        path.split('.').forEach { part ->
+            node = if (part.all(Char::isDigit)) {
+                node[pathSegmentIndex(part)]
+            } else {
+                node[part]
+            }
+        }
+        return node.asText()
+    }
+
+    private fun pathSegmentIndex(value: String): Int = value.toInt()
+
+    companion object {
+        private val objectMapper = jacksonObjectMapper()
+    }
 }

@@ -14,6 +14,7 @@ Template Spring Boot project on Kotlin with session-based security, PostgreSQL, 
 - Testcontainers
 - Spring Mail
 - Thymeleaf email templates
+- Yubico `java-webauthn-server`
 
 ## Prerequisites
 
@@ -118,6 +119,21 @@ curl \
 
 Successful reset updates the stored password hash, invalidates all active reset tokens for the user, and does not auto-login the user.
 
+### Passkeys
+
+The backend supports:
+
+- authenticated passkey registration and management at `/api/auth/passkeys*`
+- unauthenticated passkey login at `/api/auth/passkey-login/*`
+
+Passkey ceremonies are production-shaped:
+
+- durable credentials are stored in PostgreSQL
+- short-lived registration and login ceremony state is stored in Redis
+- successful passkey login returns the same response body as password login and creates the normal `JSESSIONID` session
+
+The server-side WebAuthn implementation uses Yubico `java-webauthn-server`. It was chosen because it is a mature Java WebAuthn relying-party library with first-class support for registration and assertion ceremonies, credential repositories, and discoverable passkey login.
+
 ## Mail configuration
 
 The application uses Spring Mail for delivery and Thymeleaf templates from `src/main/resources/templates/mail`.
@@ -125,6 +141,10 @@ The application uses Spring Mail for delivery and Thymeleaf templates from `src/
 Available properties:
 
 - `APP_CORS_ALLOWED_ORIGINS`
+- `APP_PASSKEY_RP_ID`
+- `APP_PASSKEY_RP_NAME`
+- `APP_PASSKEY_ORIGINS`
+- `APP_PASSKEY_CEREMONY_TTL`
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_USERNAME`
@@ -147,6 +167,8 @@ APP_RESET_PASSWORD_PATH=/reset-password \
 ```
 
 `SESSION_COOKIE_SECURE` defaults to `true` outside the `local` and `test` profiles so the session cookie is only sent over HTTPS in non-local environments.
+
+Local passkey defaults use `localhost` as the relying-party id and allow `http://localhost:3000`, `http://localhost:4173`, and `http://localhost:5173` as browser origins.
 
 ## Build and test
 
