@@ -90,6 +90,7 @@ class AuthService(
                         passwordHash = requireNotNull(passwordEncoder.encode(request.password)) {
                             "Encoded password is missing"
                         },
+                        emailVerified = false,
                     ),
                 )
 
@@ -113,32 +114,7 @@ class AuthService(
                 authUserRepository.existsByEmailIgnoreCase(email) -> throw AuthEmailAlreadyUsedException(email)
                 else -> throw exception
             }
-
-            val user = authUserRepository.save(
-                AuthUser(
-                    username = username,
-                    email = email,
-                    passwordHash = requireNotNull(passwordEncoder.encode(request.password)) {
-                        "Encoded password is missing"
-                    },
-                    emailVerified = false,
-                ),
-            )
-
-            userProfileRepository.save(
-                UserProfile(
-                    user = user,
-                    displayName = username,
-                    bio = "",
-                ),
-            )
-
-            RegisteredUser(
-                userId = requireNotNull(user.id) { "Persisted user id is missing" },
-                username = user.username,
-                email = user.email,
-            )
-        })
+        }
 
         try {
             sendVerificationEmail(registration)
