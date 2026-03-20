@@ -170,7 +170,8 @@ class AuthService(
     fun resendVerificationEmail(@Valid request: ResendVerificationEmailRequest): ResendVerificationEmailResponse {
         val dispatch = transactionTemplate.execute<RegisteredUser?> {
             val email = request.email.trim().lowercase()
-            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null) ?: return@execute null
+            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null)
+                ?: return@execute null
             if (user.emailVerified) {
                 return@execute null
             }
@@ -196,7 +197,8 @@ class AuthService(
     fun forgotPassword(@Valid request: ForgotPasswordRequest): ForgotPasswordResponse {
         val dispatch = transactionTemplate.execute<PasswordResetDispatch?> {
             val email = request.email.trim().lowercase()
-            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null) ?: return@execute null
+            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null)
+                ?: return@execute null
             val userId = requireNotNull(user.id) { "Persisted user id is missing" }
             val now = Instant.now()
 
