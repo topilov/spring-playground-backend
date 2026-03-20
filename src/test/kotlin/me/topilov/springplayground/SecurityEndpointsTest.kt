@@ -374,6 +374,14 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
 
+        val verificationToken = extractToken(recordingJavaMailSender.sentMessages().single())
+        mockMvc.perform(
+            post("/api/auth/verify-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"token":"$verificationToken"}"""),
+        )
+            .andExpect(status().isOk)
+
         recordingJavaMailSender.clear()
 
         mockMvc.perform(
