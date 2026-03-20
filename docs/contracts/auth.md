@@ -3,6 +3,7 @@
 Machine-readable contract: `openapi/openapi.yaml` and runtime `/v3/api-docs`.
 
 Change note for this task: `Breaking` because newly registered users must verify email before `POST /api/auth/login` succeeds.
+Change note for this task: `Non-breaking` because the forgot/reset password HTTP contract is unchanged while reset tokens now live in Redis.
 
 ## POST /api/auth/register
 
@@ -244,7 +245,8 @@ curl -i \
 
 **Notes**
 
-- When the account exists, backend stores a reset token and attempts to send a reset email.
+- When the account exists, backend stores a one-time reset token in Redis with the configured TTL and attempts to send a reset email.
+- The reset email link points to `APP_PUBLIC_BASE_URL + APP_RESET_PASSWORD_PATH` with the token in the `token` query parameter.
 - When the account does not exist, backend still returns the same accepted response.
 
 ## POST /api/auth/reset-password
@@ -313,6 +315,7 @@ curl -i \
 
 - Successful reset invalidates all active reset tokens for the user.
 - Successful reset updates the stored password hash and does not auto-login the user.
+- Reset tokens are server-managed, one-time, and are no longer persisted in PostgreSQL.
 
 ## POST /api/auth/login
 

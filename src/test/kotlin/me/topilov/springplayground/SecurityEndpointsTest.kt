@@ -3,9 +3,11 @@ package me.topilov.springplayground
 import jakarta.mail.Multipart
 import jakarta.mail.internet.MimeMessage
 import me.topilov.springplayground.auth.InMemoryEmailVerificationTokenStore
+import me.topilov.springplayground.auth.InMemoryPasswordResetTokenStore
 import me.topilov.springplayground.auth.RecordingJavaMailSender
 import me.topilov.springplayground.auth.TestEmailVerificationConfiguration
 import me.topilov.springplayground.auth.TestMailConfiguration
+import me.topilov.springplayground.auth.TestPasswordResetConfiguration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
@@ -33,7 +35,7 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 @SpringBootTest
-@Import(TestMailConfiguration::class, TestEmailVerificationConfiguration::class)
+@Import(TestMailConfiguration::class, TestEmailVerificationConfiguration::class, TestPasswordResetConfiguration::class)
 @Sql(
     statements = [
         "UPDATE auth_user SET password_hash = '\$2y\$10\$R51kCmlq52SEJcVep3uDtOxTXp0r9jPwGa5oQQvRuMQA84PVwCjrK', updated_at = CURRENT_TIMESTAMP WHERE id = 1",
@@ -56,12 +58,16 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     @Autowired
     lateinit var inMemoryEmailVerificationTokenStore: InMemoryEmailVerificationTokenStore
 
+    @Autowired
+    lateinit var inMemoryPasswordResetTokenStore: InMemoryPasswordResetTokenStore
+
     lateinit var mockMvc: MockMvc
 
     @BeforeEach
     fun setUp() {
         recordingJavaMailSender.clear()
         inMemoryEmailVerificationTokenStore.clear()
+        inMemoryPasswordResetTokenStore.clear()
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
             .apply<DefaultMockMvcBuilder>(springSecurity())
             .build()
@@ -277,6 +283,19 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     }
 
     @Test
+    fun `password reset tokens are not persisted in postgres`() {
+        mockMvc.perform(
+            post("/api/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"email":"demo@example.com"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        assertThat(passwordResetTokenTableExists()).isFalse()
+    }
+
+    @Test
     fun `verify email accepts valid token and enables login`() {
         val unique = uniqueSuffix()
         val username = "verify-user-$unique"
@@ -442,6 +461,16 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         """.trimIndent(),
         Boolean::class.java,
         email,
+    ) ?: false
+
+    private fun passwordResetTokenTableExists(): Boolean = jdbcTemplate.queryForObject(
+        """
+        SELECT COUNT(*) > 0
+        FROM information_schema.tables
+        WHERE table_schema = 'public'
+          AND table_name = 'password_reset_token'
+        """.trimIndent(),
+        Boolean::class.java,
     ) ?: false
 
     private fun extractToken(message: MimeMessage): String {

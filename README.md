@@ -105,6 +105,8 @@ The response is always generic:
 {"accepted":true}
 ```
 
+When the account exists, the backend creates a one-time reset token in Redis and sends an email link to `APP_PUBLIC_BASE_URL + APP_RESET_PASSWORD_PATH?token=...`.
+
 ### Reset password
 
 ```bash
@@ -113,6 +115,8 @@ curl \
   -d '{"token":"token-from-email","newPassword":"new-very-secret-password"}' \
   http://localhost:8080/api/auth/reset-password
 ```
+
+Successful reset updates the stored password hash, invalidates all active reset tokens for the user, and does not auto-login the user.
 
 ## Mail configuration
 

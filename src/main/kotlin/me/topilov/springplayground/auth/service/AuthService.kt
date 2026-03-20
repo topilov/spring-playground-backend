@@ -4,7 +4,6 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
 import me.topilov.springplayground.auth.domain.AuthUser
-import me.topilov.springplayground.auth.domain.PasswordResetToken
 import me.topilov.springplayground.auth.dto.ForgotPasswordRequest
 import me.topilov.springplayground.auth.dto.ForgotPasswordResponse
 import me.topilov.springplayground.auth.dto.LoginRequest
@@ -22,8 +21,8 @@ import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedExcepti
 import me.topilov.springplayground.auth.exception.EmailNotVerifiedException
 import me.topilov.springplayground.auth.exception.InvalidPasswordResetTokenException
 import me.topilov.springplayground.auth.exception.InvalidEmailVerificationTokenException
+import me.topilov.springplayground.auth.reset.PasswordResetTokenStore
 import me.topilov.springplayground.auth.repository.AuthUserRepository
-import me.topilov.springplayground.auth.repository.PasswordResetTokenRepository
 import me.topilov.springplayground.auth.security.AppUserPrincipal
 import me.topilov.springplayground.auth.verification.EmailVerificationTokenStore
 import me.topilov.springplayground.mail.EmailService
@@ -46,10 +45,7 @@ import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.validation.annotation.Validated
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
-import java.security.SecureRandom
 import java.time.Instant
-import java.util.Base64
 
 @Service
 @Validated
@@ -58,7 +54,7 @@ class AuthService(
     private val securityContextRepository: SecurityContextRepository,
     private val authUserRepository: AuthUserRepository,
     private val userProfileRepository: UserProfileRepository,
-    private val passwordResetTokenRepository: PasswordResetTokenRepository,
+    private val passwordResetTokenStore: PasswordResetTokenStore,
     private val passwordEncoder: PasswordEncoder,
     private val emailVerificationTokenStore: EmailVerificationTokenStore,
     private val emailService: EmailService,
@@ -176,68 +172,43 @@ class AuthService(
             val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null)
                 ?: return@execute null
             val userId = requireNotNull(user.id) { "Persisted user id is missing" }
-            val now = Instant.now()
-
-            passwordResetTokenRepository.findAllByUserIdAndUsedAtIsNull(userId)
-                .forEach { existingToken -> existingToken.usedAt = now }
-
-            val rawToken = generateToken()
-            val hashedToken = hashToken(rawToken)
-            val expiresAt = now.plus(mailProperties.passwordResetTtl)
-
-            passwordResetTokenRepository.save(
-                PasswordResetToken(
-                    user = user,
-                    tokenHash = hashedToken,
-                    expiresAt = expiresAt,
-                ),
-            )
 
             PasswordResetDispatch(
+                userId = userId,
                 recipientEmail = user.email,
                 username = user.username,
+            )
+        } ?: return ForgotPasswordResponse()
+
+        try {
+            val rawToken = passwordResetTokenStore.createToken()
+            passwordResetTokenStore.activateToken(dispatch.userId, rawToken)
+
+            emailService.sendResetPasswordEmail(
+                recipientEmail = dispatch.recipientEmail,
+                username = dispatch.username,
                 resetUrl = buildResetUrl(rawToken),
                 expiresInMinutes = mailProperties.passwordResetTtl.toMinutes(),
             )
-        }
-
-        if (dispatch != null) {
-            try {
-                emailService.sendResetPasswordEmail(
-                    recipientEmail = dispatch.recipientEmail,
-                    username = dispatch.username,
-                    resetUrl = dispatch.resetUrl,
-                    expiresInMinutes = dispatch.expiresInMinutes,
-                )
-            } catch (exception: RuntimeException) {
-                log.warn("Failed to send password reset email to {}", dispatch.recipientEmail, exception)
-            }
+        } catch (exception: RuntimeException) {
+            log.warn("Failed to send password reset email to {}", dispatch.recipientEmail, exception)
         }
 
         return ForgotPasswordResponse()
     }
 
     fun resetPassword(@Valid request: ResetPasswordRequest): ResetPasswordResponse {
+        val userId = passwordResetTokenStore.findUserId(request.token)
+            ?: throw InvalidPasswordResetTokenException()
+
         transactionTemplate.executeWithoutResult {
-            val tokenHash = hashToken(request.token.trim())
-            val token = passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(tokenHash)
+            val user = authUserRepository.findById(userId)
                 .orElseThrow(::InvalidPasswordResetTokenException)
-
-            if (token.expiresAt.isBefore(Instant.now())) {
-                throw InvalidPasswordResetTokenException()
-            }
-
-            val user = token.user ?: throw InvalidPasswordResetTokenException()
             user.passwordHash = requireNotNull(passwordEncoder.encode(request.newPassword)) {
                 "Encoded password is missing"
             }
-
-            val userId = requireNotNull(user.id) { "Persisted user id is missing" }
-            val usedAt = Instant.now()
-
-            passwordResetTokenRepository.findAllByUserIdAndUsedAtIsNull(userId)
-                .forEach { activeToken -> activeToken.usedAt = usedAt }
         }
+        passwordResetTokenStore.invalidateAllTokensForUser(userId)
 
         return ResetPasswordResponse()
     }
@@ -309,16 +280,6 @@ class AuthService(
         emailVerificationTokenStore.activateToken(registration.userId, rawToken)
     }
 
-    private fun generateToken(): String {
-        val bytes = ByteArray(32)
-        secureRandom.nextBytes(bytes)
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-    }
-
-    private fun hashToken(rawToken: String): String = MessageDigest.getInstance("SHA-256")
-        .digest(rawToken.toByteArray(StandardCharsets.UTF_8))
-        .joinToString(separator = "") { byte -> "%02x".format(byte) }
-
     private data class RegisteredUser(
         val userId: Long,
         val username: String,
@@ -326,14 +287,12 @@ class AuthService(
     )
 
     private data class PasswordResetDispatch(
+        val userId: Long,
         val recipientEmail: String,
         val username: String,
-        val resetUrl: String,
-        val expiresInMinutes: Long,
     )
 
     companion object {
         private val log = LoggerFactory.getLogger(AuthService::class.java)
-        private val secureRandom = SecureRandom()
     }
 }

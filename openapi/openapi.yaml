@@ -72,7 +72,7 @@ paths:
       tags:
       - Auth
       summary: Reset password
-      description: Resets a password using a valid reset token.
+      description: Resets a password using a valid one-time reset token.
       operationId: resetPassword
       requestBody:
         content:
@@ -258,7 +258,8 @@ paths:
       - Auth
       summary: Forgot password
       description: Accepts an email address and sends a reset link when the account
-        exists. The response is still accepted when the account is missing.
+        exists. The response is still accepted when the account is missing. The
+        reset link carries a one-time token in the token query parameter.
       operationId: forgotPassword
       requestBody:
         content:
