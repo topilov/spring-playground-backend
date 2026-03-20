@@ -673,6 +673,141 @@ components:
       type: object
       additionalProperties: true
       description: Browser-generated WebAuthn JSON payload forwarded between frontend and backend.
+    PasskeyCredentialDescriptor:
+      type: object
+      description: Credential descriptor used in WebAuthn option payloads.
+      properties:
+        type:
+          type: string
+          example: public-key
+        id:
+          type: string
+          example: base64url-credential-id
+        transports:
+          type: array
+          items:
+            type: string
+      required:
+      - id
+      - type
+      - transports
+    PasskeyPubKeyCredParam:
+      type: object
+      description: Supported public key credential parameter.
+      properties:
+        type:
+          type: string
+          example: public-key
+        alg:
+          type: integer
+          format: int64
+          example: -7
+      required:
+      - alg
+      - type
+    PasskeyRelyingParty:
+      type: object
+      description: WebAuthn relying party information.
+      properties:
+        name:
+          type: string
+          example: Spring Playground
+        id:
+          type: string
+          example: localhost
+      required:
+      - name
+    PasskeyUserIdentity:
+      type: object
+      description: WebAuthn user identity information for registration.
+      properties:
+        id:
+          type: string
+          example: base64url-user-id
+        name:
+          type: string
+          example: demo
+        displayName:
+          type: string
+          example: Demo User
+      required:
+      - displayName
+      - id
+      - name
+    PasskeyRegistrationPublicKeyOptions:
+      type: object
+      description: WebAuthn public key credential creation options.
+      properties:
+        challenge:
+          type: string
+          example: base64url-challenge
+        rp:
+          $ref: "#/components/schemas/PasskeyRelyingParty"
+        user:
+          $ref: "#/components/schemas/PasskeyUserIdentity"
+        pubKeyCredParams:
+          type: array
+          items:
+            $ref: "#/components/schemas/PasskeyPubKeyCredParam"
+        timeout:
+          type: integer
+          format: int64
+        excludeCredentials:
+          type: array
+          items:
+            $ref: "#/components/schemas/PasskeyCredentialDescriptor"
+        authenticatorSelection:
+          type: object
+          additionalProperties: true
+        attestation:
+          type: string
+        hints:
+          type: array
+          items:
+            type: string
+        extensions:
+          type: object
+          additionalProperties: true
+      required:
+      - challenge
+      - excludeCredentials
+      - extensions
+      - hints
+      - pubKeyCredParams
+      - rp
+      - user
+    PasskeyAuthenticationPublicKeyOptions:
+      type: object
+      description: WebAuthn public key credential request options.
+      properties:
+        challenge:
+          type: string
+          example: base64url-challenge
+        timeout:
+          type: integer
+          format: int64
+        rpId:
+          type: string
+          example: localhost
+        allowCredentials:
+          type: array
+          items:
+            $ref: "#/components/schemas/PasskeyCredentialDescriptor"
+        userVerification:
+          type: string
+          example: preferred
+        hints:
+          type: array
+          items:
+            type: string
+        extensions:
+          type: object
+          additionalProperties: true
+      required:
+      - allowCredentials
+      - challenge
+      - extensions
+      - hints
     ResendVerificationEmailRequest:
       type: object
       properties:
@@ -707,7 +842,7 @@ components:
           type: string
           example: ceremony-id
         publicKey:
-          $ref: "#/components/schemas/FreeFormWebAuthnObject"
+          $ref: "#/components/schemas/PasskeyRegistrationPublicKeyOptions"
       required:
       - ceremonyId
       - publicKey
@@ -786,7 +921,7 @@ components:
           type: string
           example: ceremony-id
         publicKey:
-          $ref: "#/components/schemas/FreeFormWebAuthnObject"
+          $ref: "#/components/schemas/PasskeyAuthenticationPublicKeyOptions"
       required:
       - ceremonyId
       - publicKey

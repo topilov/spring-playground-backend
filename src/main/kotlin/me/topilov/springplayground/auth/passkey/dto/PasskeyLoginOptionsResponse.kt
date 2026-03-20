@@ -6,5 +6,5 @@ import io.swagger.v3.oas.annotations.media.Schema
 data class PasskeyLoginOptionsResponse(
     @field:Schema(example = "ceremony-id")
     val ceremonyId: String,
-    val publicKey: Map<String, Any?>,
+    val publicKey: PasskeyAuthenticationPublicKeyOptionsDto,
 )

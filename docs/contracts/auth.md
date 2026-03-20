@@ -399,6 +399,7 @@ curl -i \
 ## Passkey Payload Notes
 
 - Passkey request and response bodies wrap browser-generated WebAuthn JSON.
+- The `publicKey` object returned by the backend is already the flattened browser options object. Frontend should read `response.publicKey.challenge`, not `response.publicKey.publicKey.challenge`.
 - The `publicKey` object returned by the backend is intended to be passed to `navigator.credentials.create()` or `navigator.credentials.get()` after the frontend decodes Base64URL-encoded binary members into `Uint8Array` values.
 - The `credential` object sent back to the backend should be the frontend's JSON serialization of the browser `PublicKeyCredential` result.
 - Backend treats the WebAuthn payload as protocol data, verifies it server-side, and never exposes stored public keys or other internal credential material in management responses.

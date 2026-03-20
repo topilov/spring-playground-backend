@@ -20,7 +20,7 @@ data class PasskeyUserIdentity(
 
 data class StartedPasskeyRegistration(
     val requestJson: String,
-    val publicKeyJson: Map<String, Any?>,
+    val credentialCreationJson: String,
 )
 
 data class FinishedPasskeyRegistration(
@@ -37,7 +37,7 @@ data class FinishedPasskeyRegistration(
 
 data class StartedPasskeyAuthentication(
     val requestJson: String,
-    val publicKeyJson: Map<String, Any?>,
+    val credentialRequestJson: String,
 )
 
 data class FinishedPasskeyAuthentication(

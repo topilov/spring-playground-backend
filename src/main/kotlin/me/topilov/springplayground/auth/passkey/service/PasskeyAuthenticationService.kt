@@ -4,6 +4,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import me.topilov.springplayground.auth.dto.LoginResponse
+import me.topilov.springplayground.auth.passkey.PasskeyOptionsMapper
 import me.topilov.springplayground.auth.passkey.ceremony.AuthenticationPasskeyCeremony
 import me.topilov.springplayground.auth.passkey.ceremony.PasskeyCeremonyStore
 import me.topilov.springplayground.auth.passkey.dto.PasskeyLoginOptionsRequest
@@ -24,6 +25,7 @@ class PasskeyAuthenticationService(
     private val passkeyCredentialRepository: PasskeyCredentialRepository,
     private val passkeyWebAuthnService: PasskeyWebAuthnService,
     private val sessionLoginService: SessionLoginService,
+    private val passkeyOptionsMapper: PasskeyOptionsMapper,
 ) {
     private val objectMapper = jacksonObjectMapper()
 
@@ -39,7 +41,7 @@ class PasskeyAuthenticationService(
 
         return PasskeyLoginOptionsResponse(
             ceremonyId = ceremonyId,
-            publicKey = started.publicKeyJson,
+            publicKey = passkeyOptionsMapper.authenticationOptionsFromCredentialsGetJson(started.credentialRequestJson),
         )
     }
 

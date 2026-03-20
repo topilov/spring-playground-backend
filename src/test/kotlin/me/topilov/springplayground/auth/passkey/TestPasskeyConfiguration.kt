@@ -93,7 +93,28 @@ class FakePasskeyWebAuthnService : PasskeyWebAuthnService {
         )
         return StartedPasskeyRegistration(
             requestJson = requestJson,
-            publicKeyJson = mapOf("challenge" to "test-registration-challenge"),
+            credentialCreationJson = """
+                {
+                  "publicKey": {
+                    "challenge": "test-registration-challenge",
+                    "rp": {
+                      "name": "Spring Playground Test",
+                      "id": "localhost"
+                    },
+                    "user": {
+                      "id": "${user.userHandle}",
+                      "name": "${user.username}",
+                      "displayName": "${user.displayName}"
+                    },
+                    "pubKeyCredParams": [
+                      { "type": "public-key", "alg": -7 }
+                    ],
+                    "excludeCredentials": [
+                      { "type": "public-key", "id": "existing-passkey" }
+                    ]
+                  }
+                }
+            """.trimIndent(),
         )
     }
 
@@ -112,7 +133,19 @@ class FakePasskeyWebAuthnService : PasskeyWebAuthnService {
     override fun beginAuthentication(): StartedPasskeyAuthentication =
         StartedPasskeyAuthentication(
             requestJson = """{"challenge":"test-login-challenge"}""",
-            publicKeyJson = mapOf("challenge" to "test-login-challenge"),
+            credentialRequestJson = """
+                {
+                  "publicKey": {
+                    "challenge": "test-login-challenge",
+                    "rpId": "localhost",
+                    "timeout": 300000,
+                    "allowCredentials": [
+                      { "type": "public-key", "id": "allowed-passkey" }
+                    ],
+                    "userVerification": "preferred"
+                  }
+                }
+            """.trimIndent(),
         )
 
     override fun finishAuthentication(requestJson: String, credentialJson: String): FinishedPasskeyAuthentication {
