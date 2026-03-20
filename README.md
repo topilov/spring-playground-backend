@@ -12,6 +12,8 @@ Template Spring Boot project on Kotlin with session-based security, PostgreSQL, 
 - Flyway
 - Actuator
 - Testcontainers
+- Spring Mail
+- Thymeleaf email templates
 
 ## Prerequisites
 
@@ -74,6 +76,69 @@ Template Spring Boot project on Kotlin with session-based security, PostgreSQL, 
    ```bash
    curl -i -b cookies.txt -X POST http://localhost:8080/api/auth/logout
    ```
+
+## Auth flows
+
+### Register
+
+```bash
+curl \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"new-user","email":"new-user@example.com","password":"very-secret-password"}' \
+  http://localhost:8080/api/auth/register
+```
+
+This endpoint creates the account and profile, sends a welcome email, and does not auto-login the user.
+
+### Forgot password
+
+```bash
+curl \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@example.com"}' \
+  http://localhost:8080/api/auth/forgot-password
+```
+
+The response is always generic:
+
+```json
+{"accepted":true}
+```
+
+### Reset password
+
+```bash
+curl \
+  -H 'Content-Type: application/json' \
+  -d '{"token":"token-from-email","newPassword":"new-very-secret-password"}' \
+  http://localhost:8080/api/auth/reset-password
+```
+
+## Mail configuration
+
+The application uses Spring Mail for delivery and Thymeleaf templates from `src/main/resources/templates/mail`.
+
+Available properties:
+
+- `MAIL_HOST`
+- `MAIL_PORT`
+- `MAIL_USERNAME`
+- `MAIL_PASSWORD`
+- `MAIL_SMTP_AUTH`
+- `MAIL_SMTP_STARTTLS`
+- `MAIL_FROM`
+- `MAIL_APP_NAME`
+- `APP_PUBLIC_BASE_URL`
+- `APP_RESET_PASSWORD_PATH`
+- `APP_PASSWORD_RESET_TTL`
+
+Example local setup for a frontend reset link:
+
+```bash
+APP_PUBLIC_BASE_URL=http://localhost:3000 \
+APP_RESET_PASSWORD_PATH=/reset-password \
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
 
 ## Build and test
 
