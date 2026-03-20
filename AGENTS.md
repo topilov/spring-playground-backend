@@ -53,6 +53,11 @@ This repository is the backend source of truth for the HTTP API contract. Codex 
 - `curl` examples still reflect reality.
 - Auth requirements, request shapes, response shapes, and error cases are documented.
 
+## Verification Rule
+
+- After making changes, always run the relevant tests before considering the task complete.
+- If the full intended test suite cannot run in the current environment, state exactly what was run, what could not be run, and why.
+
 ## Codex Guidance
 
 - Codex should follow this `AGENTS.md` for future tasks in this repository.

@@ -1,7 +1,6 @@
 package me.topilov.springplayground.config
 
 import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest
-import org.springframework.boot.health.actuate.endpoint.HealthEndpoint
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
@@ -38,7 +37,7 @@ class SecurityConfig {
             .securityContext { it.securityContextRepository(securityContextRepository) }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) }
             .authorizeHttpRequests {
-                it.requestMatchers(EndpointRequest.to(HealthEndpoint::class.java)).permitAll()
+                it.requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll()
                     .requestMatchers(
                     "/actuator/health",
                     "/v3/api-docs",
