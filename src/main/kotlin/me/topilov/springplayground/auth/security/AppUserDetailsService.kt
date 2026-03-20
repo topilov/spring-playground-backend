@@ -23,6 +23,7 @@ class AppUserDetailsService(
             passwordHash = user.passwordHash,
             role = user.role,
             enabledValue = user.enabled,
+            emailVerified = user.emailVerified,
         )
     }
 }

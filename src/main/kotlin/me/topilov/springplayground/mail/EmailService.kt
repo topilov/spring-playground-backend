@@ -1,9 +1,11 @@
 package me.topilov.springplayground.mail
 
 interface EmailService {
-    fun sendWelcomeEmail(
+    fun sendVerificationEmail(
         recipientEmail: String,
         username: String,
+        verificationUrl: String,
+        expiresInMinutes: Long,
     )
 
     fun sendResetPasswordEmail(

@@ -11,6 +11,8 @@ management:
   health:
     mail:
       enabled: false
+    redis:
+      enabled: false
 
 server:
   servlet:
@@ -23,5 +25,7 @@ app:
     from: test-no-reply@example.com
     app-name: Spring Playground Test
     public-base-url: http://localhost:3000
+    verify-email-path: /verify-email
+    email-verification-ttl: PT24H
     reset-password-path: /reset-password
     password-reset-ttl: PT30M

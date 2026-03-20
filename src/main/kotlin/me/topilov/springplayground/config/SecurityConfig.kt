@@ -1,5 +1,6 @@
 package me.topilov.springplayground.config
 
+import org.springframework.boot.security.autoconfigure.actuate.web.servlet.EndpointRequest
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpStatus
@@ -36,7 +37,8 @@ class SecurityConfig {
             .securityContext { it.securityContextRepository(securityContextRepository) }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED) }
             .authorizeHttpRequests {
-                it.requestMatchers(
+                it.requestMatchers(EndpointRequest.toAnyEndpoint()).permitAll()
+                    .requestMatchers(
                     "/actuator/health",
                     "/v3/api-docs",
                     "/v3/api-docs.yaml",
@@ -47,6 +49,8 @@ class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/logout",
                     "/api/auth/register",
+                    "/api/auth/verify-email",
+                    "/api/auth/resend-verification-email",
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password",
                 ).permitAll()

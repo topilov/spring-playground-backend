@@ -11,14 +11,21 @@ import me.topilov.springplayground.auth.dto.LoginRequest
 import me.topilov.springplayground.auth.dto.LoginResponse
 import me.topilov.springplayground.auth.dto.RegisterRequest
 import me.topilov.springplayground.auth.dto.RegisterResponse
+import me.topilov.springplayground.auth.dto.ResendVerificationEmailRequest
+import me.topilov.springplayground.auth.dto.ResendVerificationEmailResponse
 import me.topilov.springplayground.auth.dto.ResetPasswordRequest
 import me.topilov.springplayground.auth.dto.ResetPasswordResponse
+import me.topilov.springplayground.auth.dto.VerifyEmailRequest
+import me.topilov.springplayground.auth.dto.VerifyEmailResponse
 import me.topilov.springplayground.auth.exception.AuthEmailAlreadyUsedException
 import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedException
+import me.topilov.springplayground.auth.exception.EmailNotVerifiedException
 import me.topilov.springplayground.auth.exception.InvalidPasswordResetTokenException
+import me.topilov.springplayground.auth.exception.InvalidEmailVerificationTokenException
 import me.topilov.springplayground.auth.repository.AuthUserRepository
 import me.topilov.springplayground.auth.repository.PasswordResetTokenRepository
 import me.topilov.springplayground.auth.security.AppUserPrincipal
+import me.topilov.springplayground.auth.verification.EmailVerificationTokenStore
 import me.topilov.springplayground.mail.EmailService
 import me.topilov.springplayground.mail.MailProperties
 import me.topilov.springplayground.profile.domain.UserProfile
@@ -53,6 +60,7 @@ class AuthService(
     private val userProfileRepository: UserProfileRepository,
     private val passwordResetTokenRepository: PasswordResetTokenRepository,
     private val passwordEncoder: PasswordEncoder,
+    private val emailVerificationTokenStore: EmailVerificationTokenStore,
     private val emailService: EmailService,
     private val mailProperties: MailProperties,
     transactionManager: PlatformTransactionManager,
@@ -82,6 +90,7 @@ class AuthService(
                         passwordHash = requireNotNull(passwordEncoder.encode(request.password)) {
                             "Encoded password is missing"
                         },
+                        emailVerified = false,
                     ),
                 )
 
@@ -108,12 +117,9 @@ class AuthService(
         }
 
         try {
-            emailService.sendWelcomeEmail(
-                recipientEmail = registration.email,
-                username = registration.username,
-            )
+            sendVerificationEmail(registration)
         } catch (exception: RuntimeException) {
-            log.warn("Failed to send welcome email to {}", registration.email, exception)
+            log.warn("Failed to send verification email to {}", registration.email, exception)
         }
 
         return RegisterResponse(
@@ -123,10 +129,52 @@ class AuthService(
         )
     }
 
+    fun verifyEmail(@Valid request: VerifyEmailRequest): VerifyEmailResponse {
+        val userId = emailVerificationTokenStore.findUserId(request.token)
+            ?: throw InvalidEmailVerificationTokenException()
+
+        transactionTemplate.executeWithoutResult {
+            val user = authUserRepository.findById(userId)
+                .orElseThrow(::InvalidEmailVerificationTokenException)
+            user.emailVerified = true
+        }
+        emailVerificationTokenStore.invalidateToken(request.token)
+
+        return VerifyEmailResponse()
+    }
+
+    fun resendVerificationEmail(@Valid request: ResendVerificationEmailRequest): ResendVerificationEmailResponse {
+        val dispatch = transactionTemplate.execute<RegisteredUser?> {
+            val email = request.email.trim().lowercase()
+            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null)
+                ?: return@execute null
+            if (user.emailVerified) {
+                return@execute null
+            }
+
+            RegisteredUser(
+                userId = requireNotNull(user.id) { "Persisted user id is missing" },
+                username = user.username,
+                email = user.email,
+            )
+        }
+
+        if (dispatch != null) {
+            try {
+                sendVerificationEmail(dispatch)
+            } catch (exception: RuntimeException) {
+                log.warn("Failed to resend verification email to {}", dispatch.email, exception)
+            }
+        }
+
+        return ResendVerificationEmailResponse()
+    }
+
     fun forgotPassword(@Valid request: ForgotPasswordRequest): ForgotPasswordResponse {
         val dispatch = transactionTemplate.execute<PasswordResetDispatch?> {
             val email = request.email.trim().lowercase()
-            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null) ?: return@execute null
+            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null)
+                ?: return@execute null
             val userId = requireNotNull(user.id) { "Persisted user id is missing" }
             val now = Instant.now()
 
@@ -205,12 +253,16 @@ class AuthService(
             UsernamePasswordAuthenticationToken.unauthenticated(request.usernameOrEmail, request.password),
         )
 
+        val principal = authentication.principal as AppUserPrincipal
+        if (!principal.emailVerified) {
+            throw EmailNotVerifiedException()
+        }
+
         val context = securityContextHolderStrategy.createEmptyContext()
         context.authentication = authentication
         securityContextHolderStrategy.context = context
         securityContextRepository.saveContext(context, servletRequest, servletResponse)
 
-        val principal = authentication.principal as AppUserPrincipal
         return LoginResponse(
             userId = principal.id,
             username = principal.usernameValue,
@@ -228,14 +280,33 @@ class AuthService(
     }
 
     private fun buildResetUrl(rawToken: String): String {
+        return buildPublicUrl(mailProperties.resetPasswordPath, rawToken)
+    }
+
+    private fun buildVerificationUrl(rawToken: String): String {
+        return buildPublicUrl(mailProperties.verifyEmailPath, rawToken)
+    }
+
+    private fun buildPublicUrl(pathValue: String, rawToken: String): String {
         val baseUrl = mailProperties.publicBaseUrl.trimEnd('/')
-        val path = if (mailProperties.resetPasswordPath.startsWith("/")) {
-            mailProperties.resetPasswordPath
+        val path = if (pathValue.startsWith("/")) {
+            pathValue
         } else {
-            "/${mailProperties.resetPasswordPath}"
+            "/$pathValue"
         }
 
         return "$baseUrl$path?token=${URLEncoder.encode(rawToken, StandardCharsets.UTF_8)}"
+    }
+
+    private fun sendVerificationEmail(registration: RegisteredUser) {
+        val rawToken = emailVerificationTokenStore.createToken()
+        emailService.sendVerificationEmail(
+            recipientEmail = registration.email,
+            username = registration.username,
+            verificationUrl = buildVerificationUrl(rawToken),
+            expiresInMinutes = mailProperties.emailVerificationTtl.toMinutes(),
+        )
+        emailVerificationTokenStore.activateToken(registration.userId, rawToken)
     }
 
     private fun generateToken(): String {

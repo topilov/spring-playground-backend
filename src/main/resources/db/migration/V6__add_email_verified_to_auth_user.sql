@@ -1,0 +1,5 @@
+ALTER TABLE auth_user
+    ADD COLUMN email_verified BOOLEAN NOT NULL DEFAULT TRUE;
+
+ALTER TABLE auth_user
+    ALTER COLUMN email_verified SET DEFAULT FALSE;

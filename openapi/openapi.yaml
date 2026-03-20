@@ -100,8 +100,8 @@ paths:
       tags:
       - Auth
       summary: Register
-      description: "Creates a new user account and default profile, then sends a welcome\
-        \ email when mail delivery succeeds."
+      description: "Creates a new user account and default profile, then sends an\
+        \ email verification link when mail delivery succeeds."
       operationId: register
       requestBody:
         content:
@@ -128,6 +128,73 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RegisterResponse"
+  /api/auth/verify-email:
+    post:
+      tags:
+      - Auth
+      summary: Verify email
+      description: Confirms a user email using a token that was previously sent by
+        email.
+      operationId: verifyEmail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+        required: true
+      responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Verification token is invalid or expired.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: Email verification completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyEmailResponse"
+  /api/auth/resend-verification-email:
+    post:
+      tags:
+      - Auth
+      summary: Resend verification email
+      description: Accepts an email address and sends a fresh verification link when
+        the account exists and is not yet verified. The response is still accepted
+        when the account is missing or already verified.
+      operationId: resendVerificationEmail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendVerificationEmailRequest"
+        required: true
+      responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: Request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResendVerificationEmailResponse"
   /api/auth/logout:
     post:
       tags:
@@ -179,7 +246,12 @@ paths:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
         "401":
-          description: Invalid credentials or rejected login request.
+          description: Invalid credentials, rejected login request, or email is not
+            yet verified.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/auth/forgot-password:
     post:
       tags:
@@ -230,7 +302,8 @@ components:
       properties:
         error:
           type: string
-          example: Username 'demo' is already in use
+        code:
+          type: string
       required:
       - error
     UpdateProfileRequest:
@@ -362,6 +435,38 @@ components:
       - email
       - userId
       - username
+    VerifyEmailRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+      required:
+      - token
+    VerifyEmailResponse:
+      type: object
+      properties:
+        verified:
+          type: boolean
+      required:
+      - verified
+    ResendVerificationEmailRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 1
+      required:
+      - email
+    ResendVerificationEmailResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+      required:
+      - accepted
     LoginRequest:
       type: object
       description: Credentials used for session-based login.

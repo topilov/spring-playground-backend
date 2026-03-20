@@ -32,6 +32,8 @@ class AuthUser(
     var role: AuthRole = AuthRole.USER,
     @Column(nullable = false)
     var enabled: Boolean = true,
+    @Column(name = "email_verified", nullable = false)
+    var emailVerified: Boolean = false,
     @Column(name = "created_at", nullable = false, updatable = false)
     var createdAt: Instant = Instant.EPOCH,
     @Column(name = "updated_at", nullable = false)

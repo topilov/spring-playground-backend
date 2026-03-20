@@ -16,8 +16,12 @@ import me.topilov.springplayground.auth.dto.LoginRequest
 import me.topilov.springplayground.auth.dto.LoginResponse
 import me.topilov.springplayground.auth.dto.RegisterRequest
 import me.topilov.springplayground.auth.dto.RegisterResponse
+import me.topilov.springplayground.auth.dto.ResendVerificationEmailRequest
+import me.topilov.springplayground.auth.dto.ResendVerificationEmailResponse
 import me.topilov.springplayground.auth.dto.ResetPasswordRequest
 import me.topilov.springplayground.auth.dto.ResetPasswordResponse
+import me.topilov.springplayground.auth.dto.VerifyEmailRequest
+import me.topilov.springplayground.auth.dto.VerifyEmailResponse
 import me.topilov.springplayground.auth.service.AuthService
 import me.topilov.springplayground.shared.dto.ApiErrorResponse
 import me.topilov.springplayground.shared.dto.SimpleErrorResponse
@@ -36,7 +40,7 @@ class AuthController(
 ) {
     @Operation(
         summary = "Register",
-        description = "Creates a new user account and default profile, then sends a welcome email when mail delivery succeeds.",
+        description = "Creates a new user account and default profile, then sends an email verification link when mail delivery succeeds.",
         requestBody = io.swagger.v3.oas.annotations.parameters.RequestBody(required = true),
     )
     @ApiResponses(
@@ -77,6 +81,55 @@ class AuthController(
     fun register(
         @Valid @SpringRequestBody request: RegisterRequest,
     ): RegisterResponse = authService.register(request)
+
+    @Operation(
+        summary = "Verify email",
+        description = "Confirms a user email using a token that was previously sent by email.",
+        requestBody = io.swagger.v3.oas.annotations.parameters.RequestBody(required = true),
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Email verification completed.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = VerifyEmailResponse::class),
+                    ),
+                ],
+            ),
+            ApiResponse(responseCode = "400", description = "Verification token is invalid or expired."),
+        ],
+    )
+    @PostMapping("/verify-email")
+    fun verifyEmail(
+        @Valid @SpringRequestBody request: VerifyEmailRequest,
+    ): VerifyEmailResponse = authService.verifyEmail(request)
+
+    @Operation(
+        summary = "Resend verification email",
+        description = "Accepts an email address and sends a fresh verification link when the account exists and is not yet verified. The response is still accepted when the account is missing or already verified.",
+        requestBody = io.swagger.v3.oas.annotations.parameters.RequestBody(required = true),
+    )
+    @ApiResponses(
+        value = [
+            ApiResponse(
+                responseCode = "200",
+                description = "Request accepted.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = ResendVerificationEmailResponse::class),
+                    ),
+                ],
+            ),
+        ],
+    )
+    @PostMapping("/resend-verification-email")
+    fun resendVerificationEmail(
+        @Valid @SpringRequestBody request: ResendVerificationEmailRequest,
+    ): ResendVerificationEmailResponse = authService.resendVerificationEmail(request)
 
     @Operation(
         summary = "Forgot password",
@@ -187,7 +240,7 @@ class AuthController(
             ),
             ApiResponse(
                 responseCode = "401",
-                description = "Invalid credentials or rejected login request.",
+                description = "Invalid credentials, rejected login request, or email is not yet verified.",
                 content = [Content()],
             ),
         ],
