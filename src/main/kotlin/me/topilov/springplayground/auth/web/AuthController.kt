@@ -19,6 +19,8 @@ import me.topilov.springplayground.auth.dto.RegisterResponse
 import me.topilov.springplayground.auth.dto.ResetPasswordRequest
 import me.topilov.springplayground.auth.dto.ResetPasswordResponse
 import me.topilov.springplayground.auth.service.AuthService
+import me.topilov.springplayground.shared.dto.ApiErrorResponse
+import me.topilov.springplayground.shared.dto.SimpleErrorResponse
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.PostMapping
@@ -40,6 +42,16 @@ class AuthController(
     @ApiResponses(
         value = [
             ApiResponse(
+                responseCode = "400",
+                description = "Validation failed for the submitted registration payload.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = ApiErrorResponse::class),
+                    ),
+                ],
+            ),
+            ApiResponse(
                 responseCode = "200",
                 description = "Successful registration.",
                 content = [
@@ -49,7 +61,16 @@ class AuthController(
                     ),
                 ],
             ),
-            ApiResponse(responseCode = "409", description = "Username or email is already in use."),
+            ApiResponse(
+                responseCode = "409",
+                description = "Username or email is already in use.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = SimpleErrorResponse::class),
+                    ),
+                ],
+            ),
         ],
     )
     @PostMapping("/register")
@@ -64,6 +85,16 @@ class AuthController(
     )
     @ApiResponses(
         value = [
+            ApiResponse(
+                responseCode = "400",
+                description = "Validation failed for the submitted email payload.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = ApiErrorResponse::class),
+                    ),
+                ],
+            ),
             ApiResponse(
                 responseCode = "200",
                 description = "Request accepted.",
@@ -98,7 +129,16 @@ class AuthController(
                     ),
                 ],
             ),
-            ApiResponse(responseCode = "400", description = "Reset token is invalid or expired."),
+            ApiResponse(
+                responseCode = "400",
+                description = "Validation failed or the reset token is invalid or expired.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(oneOf = [ApiErrorResponse::class, SimpleErrorResponse::class]),
+                    ),
+                ],
+            ),
         ],
     )
     @PostMapping("/reset-password")
@@ -113,6 +153,16 @@ class AuthController(
     )
     @ApiResponses(
         value = [
+            ApiResponse(
+                responseCode = "400",
+                description = "Validation failed for the submitted login payload.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = ApiErrorResponse::class),
+                    ),
+                ],
+            ),
             ApiResponse(
                 responseCode = "200",
                 description = "Successful login. The response body describes the authenticated user and the response sets JSESSIONID.",

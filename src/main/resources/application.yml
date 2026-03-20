@@ -41,6 +41,7 @@ server:
     session:
       cookie:
         http-only: true
+        secure: ${SESSION_COOKIE_SECURE:true}
         same-site: lax
 
 app:
