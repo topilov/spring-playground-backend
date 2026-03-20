@@ -120,6 +120,7 @@ The application uses Spring Mail for delivery and Thymeleaf templates from `src/
 
 Available properties:
 
+- `APP_CORS_ALLOWED_ORIGINS`
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_USERNAME`
@@ -139,6 +140,15 @@ APP_PUBLIC_BASE_URL=http://localhost:3000 \
 APP_RESET_PASSWORD_PATH=/reset-password \
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
+
+For local browser-based frontend development, the backend allows `http://localhost:4173` by default. Override it when needed:
+
+```bash
+APP_CORS_ALLOWED_ORIGINS=http://localhost:4173 \
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
+
+When calling session-backed endpoints from the frontend, use credentialed requests so the browser stores and resends `JSESSIONID`, for example `fetch(url, { credentials: 'include' })`.
 
 ## Build and test
 

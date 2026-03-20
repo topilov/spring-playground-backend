@@ -1,6 +1,7 @@
 package me.topilov.springplayground.auth.web
 
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.headers.Header
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -107,7 +108,7 @@ class AuthController(
 
     @Operation(
         summary = "Login",
-        description = "Authenticates by username or email and creates a server-side session backed by the JSESSIONID cookie.",
+        description = "Authenticates by username or email and creates a server-side session backed by the JSESSIONID cookie. Browser-based cross-origin clients must send the request with credentials enabled.",
         requestBody = io.swagger.v3.oas.annotations.parameters.RequestBody(required = true),
     )
     @ApiResponses(
@@ -115,6 +116,18 @@ class AuthController(
             ApiResponse(
                 responseCode = "200",
                 description = "Successful login. The response body describes the authenticated user and the response sets JSESSIONID.",
+                headers = [
+                    Header(
+                        name = "Access-Control-Allow-Origin",
+                        description = "Returned for allowed browser origins on cross-origin requests.",
+                        schema = Schema(type = "string"),
+                    ),
+                    Header(
+                        name = "Access-Control-Allow-Credentials",
+                        description = "Returned as true for allowed browser origins so the session cookie can be stored by the client.",
+                        schema = Schema(type = "string"),
+                    ),
+                ],
                 content = [
                     Content(
                         mediaType = "application/json",
