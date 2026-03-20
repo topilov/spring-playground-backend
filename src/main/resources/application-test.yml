@@ -3,3 +3,19 @@ spring:
     show-sql: false
   flyway:
     enabled: true
+  mail:
+    host: localhost
+    port: 2525
+
+management:
+  health:
+    mail:
+      enabled: false
+
+app:
+  mail:
+    from: test-no-reply@example.com
+    app-name: Spring Playground Test
+    public-base-url: http://localhost:3000
+    reset-password-path: /reset-password
+    password-reset-ttl: PT30M
