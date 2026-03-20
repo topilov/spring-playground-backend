@@ -9,8 +9,14 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import me.topilov.springplayground.auth.dto.ForgotPasswordRequest
+import me.topilov.springplayground.auth.dto.ForgotPasswordResponse
 import me.topilov.springplayground.auth.dto.LoginRequest
 import me.topilov.springplayground.auth.dto.LoginResponse
+import me.topilov.springplayground.auth.dto.RegisterRequest
+import me.topilov.springplayground.auth.dto.RegisterResponse
+import me.topilov.springplayground.auth.dto.ResetPasswordRequest
+import me.topilov.springplayground.auth.dto.ResetPasswordResponse
 import me.topilov.springplayground.auth.service.AuthService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
