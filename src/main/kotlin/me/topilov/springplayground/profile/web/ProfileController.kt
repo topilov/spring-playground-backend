@@ -2,6 +2,8 @@ package me.topilov.springplayground.profile.web
 
 import jakarta.validation.Valid
 import me.topilov.springplayground.auth.security.AppUserPrincipal
+import me.topilov.springplayground.profile.dto.ProfileResponse
+import me.topilov.springplayground.profile.dto.UpdateProfileRequest
 import me.topilov.springplayground.profile.service.ProfileService
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -16,12 +18,12 @@ class ProfileController(
     private val profileService: ProfileService,
 ) {
     @GetMapping("/me")
-    fun currentProfile(@AuthenticationPrincipal principal: AppUserPrincipal): ProfileService.ProfileResponse =
+    fun currentProfile(@AuthenticationPrincipal principal: AppUserPrincipal): ProfileResponse =
         profileService.getCurrentProfile(principal.id)
 
     @PutMapping("/me")
     fun updateCurrentProfile(
         @AuthenticationPrincipal principal: AppUserPrincipal,
-        @Valid @RequestBody request: ProfileService.UpdateProfileRequest,
-    ): ProfileService.ProfileResponse = profileService.updateCurrentProfile(principal.id, request)
+        @Valid @RequestBody request: UpdateProfileRequest,
+    ): ProfileResponse = profileService.updateCurrentProfile(principal.id, request)
 }
