@@ -17,7 +17,9 @@ import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfig
 import org.springframework.test.context.jdbc.Sql
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder
@@ -36,6 +38,8 @@ import java.nio.charset.StandardCharsets
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD,
 )
 class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
+    private val frontendOrigin = "http://localhost:4173"
+
     @Autowired
     lateinit var webApplicationContext: WebApplicationContext
 
@@ -105,6 +109,32 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andReturn()
 
         assertThat(result.request.session).isInstanceOf(MockHttpSession::class.java)
+    }
+
+    @Test
+    fun `login preflight allows frontend origin`() {
+        mockMvc.perform(
+            options("/api/auth/login")
+                .header("Origin", frontendOrigin)
+                .header("Access-Control-Request-Method", "POST")
+                .header("Access-Control-Request-Headers", "content-type"),
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("Access-Control-Allow-Origin", frontendOrigin))
+            .andExpect(header().string("Access-Control-Allow-Credentials", "true"))
+    }
+
+    @Test
+    fun `login response includes cors headers for frontend origin`() {
+        mockMvc.perform(
+            post("/api/auth/login")
+                .header("Origin", frontendOrigin)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(header().string("Access-Control-Allow-Origin", frontendOrigin))
+            .andExpect(header().string("Access-Control-Allow-Credentials", "true"))
     }
 
     @Test

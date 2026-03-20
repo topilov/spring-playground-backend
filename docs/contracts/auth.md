@@ -242,8 +242,9 @@ curl -i \
 
 - Successful login sets the `JSESSIONID` session cookie.
 - Current cookie behavior is session-based, `HttpOnly`, and `SameSite=Lax`.
+- Browser-based cross-origin requests from configured frontend origins are allowed. The default local development origin is `http://localhost:4173`.
 - CSRF is currently disabled, so no CSRF token is required for login or follow-up API calls.
-- Frontend should persist and resend the session cookie on protected requests.
+- Frontend should send login and protected requests with credentials enabled, for example `fetch(..., { credentials: 'include' })`, so the browser stores and resends `JSESSIONID`.
 - Frontend should use OpenAPI for generated request and response types, then follow this markdown doc for session-flow behavior details.
 
 ## POST /api/auth/logout
