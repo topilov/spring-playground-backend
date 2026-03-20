@@ -131,6 +131,7 @@ Available properties:
 - `APP_PUBLIC_BASE_URL`
 - `APP_RESET_PASSWORD_PATH`
 - `APP_PASSWORD_RESET_TTL`
+- `SESSION_COOKIE_SECURE`
 
 Example local setup for a frontend reset link:
 
@@ -139,6 +140,8 @@ APP_PUBLIC_BASE_URL=http://localhost:3000 \
 APP_RESET_PASSWORD_PATH=/reset-password \
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
+
+`SESSION_COOKIE_SECURE` defaults to `true` outside the `local` and `test` profiles so the session cookie is only sent over HTTPS in non-local environments.
 
 ## Build and test
 

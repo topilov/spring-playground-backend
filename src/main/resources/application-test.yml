@@ -12,6 +12,12 @@ management:
     mail:
       enabled: false
 
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+
 app:
   mail:
     from: test-no-reply@example.com

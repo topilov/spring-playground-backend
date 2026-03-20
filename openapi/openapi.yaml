@@ -23,18 +23,6 @@ paths:
       description: Returns the profile linked to the current authenticated session.
       operationId: currentProfile
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: Bad Request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Current profile.
           content:
@@ -60,12 +48,6 @@ paths:
               $ref: "#/components/schemas/UpdateProfileRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Validation failed for the submitted profile payload.
           content:
@@ -98,18 +80,14 @@ paths:
               $ref: "#/components/schemas/ResetPasswordRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Reset token is invalid or expired.
+          description: Validation failed or the reset token is invalid or expired.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                - $ref: "#/components/schemas/ApiErrorResponse"
+                - $ref: "#/components/schemas/SimpleErrorResponse"
         "200":
           description: Password reset completed.
           content:
@@ -134,15 +112,15 @@ paths:
         "409":
           description: Username or email is already in use.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/SimpleErrorResponse"
         "400":
-          description: Bad Request
+          description: Validation failed for the submitted registration payload.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiErrorResponse"
         "200":
           description: Successful registration.
           content:
@@ -158,18 +136,6 @@ paths:
         204 even when no active session exists.
       operationId: logout
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: Bad Request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "204":
           description: Logout completed.
   /api/auth/login:
@@ -187,18 +153,12 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Bad Request
+          description: Validation failed for the submitted login payload.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiErrorResponse"
         "200":
           description: Successful login. The response body describes the authenticated
             user and the response sets JSESSIONID.
@@ -223,18 +183,12 @@ paths:
               $ref: "#/components/schemas/ForgotPasswordRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Bad Request
+          description: Validation failed for the submitted email payload.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiErrorResponse"
         "200":
           description: Request accepted.
           content:
@@ -250,18 +204,6 @@ paths:
         the backend is reachable.
       operationId: ping
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: Bad Request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Public ping response.
           content:
@@ -270,11 +212,13 @@ paths:
                 $ref: "#/components/schemas/PublicPingResponse"
 components:
   schemas:
-    ErrorResponse:
+    SimpleErrorResponse:
       type: object
+      description: Simple application-defined error response body.
       properties:
         error:
           type: string
+          example: Username 'demo' is already in use
       required:
       - error
     UpdateProfileRequest:

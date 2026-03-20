@@ -48,7 +48,16 @@ Current request shape:
 
 **Typical Error Statuses**
 
+- `400 Bad Request` when request validation fails.
 - `409 Conflict` when the username or email is already used.
+
+Conflict response body example:
+
+```json
+{
+  "error": "Username 'demo' is already in use"
+}
+```
 
 **curl**
 
@@ -105,6 +114,7 @@ Current request shape:
 
 **Typical Error Statuses**
 
+- `400 Bad Request` when the email field is blank or malformed.
 - No user-specific error is exposed. Current implementation returns the same accepted response for existing and missing emails.
 
 **curl**
@@ -163,7 +173,16 @@ Current request shape:
 
 **Typical Error Statuses**
 
+- `400 Bad Request` when request validation fails.
 - `400 Bad Request` when the reset token is invalid or expired.
+
+Token error response body example:
+
+```json
+{
+  "error": "Password reset token is invalid or expired"
+}
+```
 
 **curl**
 
@@ -225,8 +244,8 @@ Current request shape:
 
 **Typical Error Statuses**
 
+- `400 Bad Request` with the framework default error body when required fields are blank.
 - `401 Unauthorized` with an empty body when credentials are invalid.
-- `401 Unauthorized` with an empty body for blank login fields in the current implementation.
 
 **curl**
 
@@ -242,6 +261,7 @@ curl -i \
 
 - Successful login sets the `JSESSIONID` session cookie.
 - Current cookie behavior is session-based, `HttpOnly`, and `SameSite=Lax`.
+- Default non-local configuration also marks the session cookie `Secure`; the `local` and `test` profiles disable `Secure` so HTTP development and tests still work.
 - CSRF is currently disabled, so no CSRF token is required for login or follow-up API calls.
 - Frontend should persist and resend the session cookie on protected requests.
 - Frontend should use OpenAPI for generated request and response types, then follow this markdown doc for session-flow behavior details.

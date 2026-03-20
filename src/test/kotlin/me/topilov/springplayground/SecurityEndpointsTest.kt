@@ -5,12 +5,14 @@ import jakarta.mail.internet.MimeMessage
 import me.topilov.springplayground.auth.RecordingJavaMailSender
 import me.topilov.springplayground.auth.TestMailConfiguration
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.mock.web.MockHttpSession
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
@@ -78,6 +80,10 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(jsonPath("$.paths['/api/auth/login']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/logout']").exists())
             .andExpect(jsonPath("$.paths['/api/profile/me']").exists())
+            .andExpect(jsonPath("$.paths['/api/public/ping'].get.responses['400']").doesNotExist())
+            .andExpect(jsonPath("$.paths['/api/public/ping'].get.responses['409']").doesNotExist())
+            .andExpect(jsonPath("$.paths['/api/profile/me'].get.responses['400']").doesNotExist())
+            .andExpect(jsonPath("$.paths['/api/profile/me'].get.responses['409']").doesNotExist())
     }
 
     @Test
@@ -169,6 +175,33 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload),
         ).andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `database enforces case insensitive auth identity uniqueness`() {
+        assertThrows(DataIntegrityViolationException::class.java) {
+            jdbcTemplate.update(
+                """
+                INSERT INTO auth_user (username, email, password_hash, role, enabled, created_at, updated_at)
+                VALUES (?, ?, ?, 'USER', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """.trimIndent(),
+                "Demo",
+                "another@example.com",
+                "\$2a\$10\$abcdefghijklmnopqrstuvabcdefghijklmnopqrstuvabcd",
+            )
+        }
+
+        assertThrows(DataIntegrityViolationException::class.java) {
+            jdbcTemplate.update(
+                """
+                INSERT INTO auth_user (username, email, password_hash, role, enabled, created_at, updated_at)
+                VALUES (?, ?, ?, 'USER', TRUE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """.trimIndent(),
+                "another-user",
+                "DEMO@EXAMPLE.COM",
+                "\$2a\$10\$abcdefghijklmnopqrstuvabcdefghijklmnopqrstuvabcd",
+            )
+        }
     }
 
     @Test
