@@ -2,7 +2,9 @@ package me.topilov.springplayground
 
 import jakarta.mail.Multipart
 import jakarta.mail.internet.MimeMessage
+import me.topilov.springplayground.auth.InMemoryEmailVerificationTokenStore
 import me.topilov.springplayground.auth.RecordingJavaMailSender
+import me.topilov.springplayground.auth.TestEmailVerificationConfiguration
 import me.topilov.springplayground.auth.TestMailConfiguration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -27,7 +29,7 @@ import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
 @SpringBootTest
-@Import(TestMailConfiguration::class)
+@Import(TestMailConfiguration::class, TestEmailVerificationConfiguration::class)
 @Sql(
     statements = [
         "UPDATE auth_user SET password_hash = '\$2y\$10\$R51kCmlq52SEJcVep3uDtOxTXp0r9jPwGa5oQQvRuMQA84PVwCjrK', updated_at = CURRENT_TIMESTAMP WHERE id = 1",
@@ -45,11 +47,15 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     @Autowired
     lateinit var recordingJavaMailSender: RecordingJavaMailSender
 
+    @Autowired
+    lateinit var inMemoryEmailVerificationTokenStore: InMemoryEmailVerificationTokenStore
+
     lateinit var mockMvc: MockMvc
 
     @BeforeEach
     fun setUp() {
         recordingJavaMailSender.clear()
+        inMemoryEmailVerificationTokenStore.clear()
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
             .apply<DefaultMockMvcBuilder>(springSecurity())
             .build()
@@ -128,13 +134,14 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         val unique = uniqueSuffix()
         val username = "new-user-$unique"
         val email = "new-user-$unique@example.com"
+        val password = "very-secret-password"
 
         val result = mockMvc.perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"username":"$username","email":"$email","password":"very-secret-password"}
+                    {"username":"$username","email":"$email","password":"$password"}
                     """.trimIndent(),
                 ),
         )
@@ -148,7 +155,16 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         assertThat(profileExists(email)).isTrue()
         assertThat(recordingJavaMailSender.sentMessages()).hasSize(1)
         assertThat(recordingJavaMailSender.sentMessages().single().allRecipients.single().toString()).isEqualTo(email)
-        assertThat(recordingJavaMailSender.sentMessages().single().subject).contains("Welcome")
+        assertThat(recordingJavaMailSender.sentMessages().single().subject).contains("Verify")
+        assertThat(extractToken(recordingJavaMailSender.sentMessages().single())).isNotBlank()
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"$email","password":"$password"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.code").value("EMAIL_NOT_VERIFIED"))
     }
 
     @Test
@@ -190,6 +206,89 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             post("/api/auth/forgot-password")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""{"email":"missing@example.com"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        assertThat(recordingJavaMailSender.sentMessages()).isEmpty()
+    }
+
+    @Test
+    fun `verify email accepts valid token and enables login`() {
+        val unique = uniqueSuffix()
+        val username = "verify-user-$unique"
+        val email = "verify-user-$unique@example.com"
+        val password = "verify-password"
+
+        mockMvc.perform(
+            post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username","email":"$email","password":"$password"}"""),
+        )
+            .andExpect(status().isOk)
+
+        val token = extractToken(recordingJavaMailSender.sentMessages().single())
+
+        mockMvc.perform(
+            post("/api/auth/verify-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"token":"$token"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.verified").value(true))
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"$email","password":"$password"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.username").value(username))
+    }
+
+    @Test
+    fun `resend verification email rotates token and keeps missing email opaque`() {
+        val unique = uniqueSuffix()
+        val username = "resend-user-$unique"
+        val email = "resend-user-$unique@example.com"
+        val password = "resend-password"
+
+        mockMvc.perform(
+            post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username","email":"$email","password":"$password"}"""),
+        )
+            .andExpect(status().isOk)
+
+        val firstToken = extractToken(recordingJavaMailSender.sentMessages().single())
+        recordingJavaMailSender.clear()
+
+        mockMvc.perform(
+            post("/api/auth/resend-verification-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"email":"$email"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        val resentMessage = recordingJavaMailSender.sentMessages().single()
+        val secondToken = extractToken(resentMessage)
+        assertThat(secondToken).isNotEqualTo(firstToken)
+
+        mockMvc.perform(
+            post("/api/auth/verify-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"token":"$secondToken"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.verified").value(true))
+
+        recordingJavaMailSender.clear()
+
+        mockMvc.perform(
+            post("/api/auth/resend-verification-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"email":"missing-$unique@example.com"}"""),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))

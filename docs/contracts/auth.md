@@ -2,11 +2,13 @@
 
 Machine-readable contract: `openapi/openapi.yaml` and runtime `/v3/api-docs`.
 
+Change note for this task: `Breaking` because newly registered users must verify email before `POST /api/auth/login` succeeds.
+
 ## POST /api/auth/register
 
 **Purpose**
 
-Create a new user account and default profile, then send a welcome email when delivery succeeds.
+Create a new user account and default profile, then send an email verification link when delivery succeeds.
 
 **Authentication**
 
@@ -62,8 +64,122 @@ curl -i \
 **Notes**
 
 - Registration creates the auth user and a default profile.
+- Registration stores the new account as email-unverified.
 - Registration does not create an authenticated session.
-- Welcome email delivery is attempted after successful persistence.
+- Verification email delivery is attempted after successful persistence.
+- The verification link targets the frontend route and includes a one-time token in the `token` query parameter.
+
+## POST /api/auth/verify-email
+
+**Purpose**
+
+Confirm a user's email address using the token that was sent after registration or resend.
+
+**Authentication**
+
+No prior authentication required.
+
+**Request Body**
+
+```json
+{
+  "token": "token-from-email"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "token": "string, required, must not be blank"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "verified": true
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when the verification token is invalid or expired.
+
+**curl**
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{"token":"token-from-email"}' \
+  http://localhost:8080/api/auth/verify-email
+```
+
+**Notes**
+
+- Successful verification marks the stored account email as verified.
+- Successful verification invalidates the one-time token, so it cannot be reused.
+
+## POST /api/auth/resend-verification-email
+
+**Purpose**
+
+Accept an email address and send a fresh verification link when the account exists and is not yet verified.
+
+**Authentication**
+
+No prior authentication required.
+
+**Request Body**
+
+```json
+{
+  "email": "demo@example.com"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "email": "string, required, must be a valid email, max 255 chars"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "accepted": true
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- No user-specific error is exposed. Current implementation returns the same accepted response for existing, missing, and already verified emails.
+
+**curl**
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@example.com"}' \
+  http://localhost:8080/api/auth/resend-verification-email
+```
+
+**Notes**
+
+- When the account exists and is still unverified, backend stores a fresh one-time verification token in Redis and attempts to send a new verification email.
+- When the account does not exist or is already verified, backend still returns the same accepted response.
 
 ## POST /api/auth/forgot-password
 
@@ -227,6 +343,14 @@ Current request shape:
 
 - `401 Unauthorized` with an empty body when credentials are invalid.
 - `401 Unauthorized` with an empty body for blank login fields in the current implementation.
+- `401 Unauthorized` with a JSON body when the credentials are valid but the email is not verified:
+
+```json
+{
+  "error": "Email is not verified",
+  "code": "EMAIL_NOT_VERIFIED"
+}
+```
 
 **curl**
 
@@ -241,6 +365,7 @@ curl -i \
 **Notes**
 
 - Successful login sets the `JSESSIONID` session cookie.
+- Successful login requires a verified email address.
 - Current cookie behavior is session-based, `HttpOnly`, and `SameSite=Lax`.
 - CSRF is currently disabled, so no CSRF token is required for login or follow-up API calls.
 - Frontend should persist and resend the session cookie on protected requests.

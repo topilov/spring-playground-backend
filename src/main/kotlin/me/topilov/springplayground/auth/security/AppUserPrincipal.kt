@@ -12,6 +12,7 @@ class AppUserPrincipal(
     private val passwordHash: String,
     val role: AuthRole,
     private val enabledValue: Boolean,
+    val emailVerified: Boolean,
 ) : UserDetails {
 
     override fun getAuthorities(): Collection<GrantedAuthority> =

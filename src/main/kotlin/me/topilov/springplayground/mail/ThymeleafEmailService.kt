@@ -12,16 +12,20 @@ class ThymeleafEmailService(
     private val templateEngine: SpringTemplateEngine,
     private val mailProperties: MailProperties,
 ) : EmailService {
-    override fun sendWelcomeEmail(
+    override fun sendVerificationEmail(
         recipientEmail: String,
         username: String,
+        verificationUrl: String,
+        expiresInMinutes: Long,
     ) = sendHtmlEmail(
         recipientEmail = recipientEmail,
-        subject = "Welcome to ${mailProperties.appName}",
-        templateName = "mail/welcome",
+        subject = "Verify your ${mailProperties.appName} email",
+        templateName = "mail/verify-email",
         variables = mapOf(
             "appName" to mailProperties.appName,
             "username" to username,
+            "verificationUrl" to verificationUrl,
+            "expiresInMinutes" to expiresInMinutes,
         ),
     )
 

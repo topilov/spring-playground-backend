@@ -2,6 +2,8 @@ package me.topilov.springplayground.auth.web
 
 import me.topilov.springplayground.auth.exception.AuthEmailAlreadyUsedException
 import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedException
+import me.topilov.springplayground.auth.exception.EmailNotVerifiedException
+import me.topilov.springplayground.auth.exception.InvalidEmailVerificationTokenException
 import me.topilov.springplayground.auth.exception.InvalidPasswordResetTokenException
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -18,8 +20,22 @@ class AuthExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleBadRequest(exception: InvalidPasswordResetTokenException): ErrorResponse =
         ErrorResponse(error = exception.message ?: "Bad request")
+
+    @ExceptionHandler(InvalidEmailVerificationTokenException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleInvalidEmailVerificationToken(exception: InvalidEmailVerificationTokenException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Bad request")
+
+    @ExceptionHandler(EmailNotVerifiedException::class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    fun handleEmailNotVerified(exception: EmailNotVerifiedException): ErrorResponse =
+        ErrorResponse(
+            error = exception.message ?: "Unauthorized",
+            code = "EMAIL_NOT_VERIFIED",
+        )
 }
 
 data class ErrorResponse(
     val error: String,
+    val code: String? = null,
 )

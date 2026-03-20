@@ -43,6 +43,8 @@ class SecurityConfig {
                     "/api/auth/login",
                     "/api/auth/logout",
                     "/api/auth/register",
+                    "/api/auth/verify-email",
+                    "/api/auth/resend-verification-email",
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password",
                 ).permitAll()
