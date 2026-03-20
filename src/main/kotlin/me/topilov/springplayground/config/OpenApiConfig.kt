@@ -35,7 +35,8 @@ class OpenApiConfig {
                 .version("0.0.1-SNAPSHOT")
                 .description(
                     "Session-based auth/profile/public HTTP API. " +
-                        "This OpenAPI schema is the machine-readable contract for frontend integration.",
+                        "This OpenAPI schema is the machine-readable contract for frontend integration. " +
+                        "Browser clients should send credentialed requests so the JSESSIONID session cookie is stored and resent.",
                 ),
         )
 }

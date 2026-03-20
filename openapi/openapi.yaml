@@ -2,7 +2,8 @@ openapi: 3.1.0
 info:
   title: Spring Playground Backend API
   description: Session-based auth/profile/public HTTP API. This OpenAPI schema is
-    the machine-readable contract for frontend integration.
+    the machine-readable contract for frontend integration. Browser clients should
+    send credentialed requests so the JSESSIONID session cookie is stored and resent.
   version: 0.0.1-SNAPSHOT
 servers:
 - url: http://localhost:8080
@@ -23,18 +24,6 @@ paths:
       description: Returns the profile linked to the current authenticated session.
       operationId: currentProfile
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: Bad Request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Current profile.
           content:
@@ -60,12 +49,6 @@ paths:
               $ref: "#/components/schemas/UpdateProfileRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Validation failed for the submitted profile payload.
           content:
@@ -98,18 +81,14 @@ paths:
               $ref: "#/components/schemas/ResetPasswordRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Reset token is invalid or expired.
+          description: Validation failed or the reset token is invalid or expired.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                oneOf:
+                - $ref: "#/components/schemas/ApiErrorResponse"
+                - $ref: "#/components/schemas/SimpleErrorResponse"
         "200":
           description: Password reset completed.
           content:
@@ -134,15 +113,15 @@ paths:
         "409":
           description: Username or email is already in use.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/SimpleErrorResponse"
         "400":
-          description: Bad Request
+          description: Validation failed for the submitted registration payload.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiErrorResponse"
         "200":
           description: Successful registration.
           content:
@@ -225,18 +204,6 @@ paths:
         204 even when no active session exists.
       operationId: logout
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: Bad Request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "204":
           description: Logout completed.
   /api/auth/login:
@@ -245,7 +212,8 @@ paths:
       - Auth
       summary: Login
       description: Authenticates by username or email and creates a server-side session
-        backed by the JSESSIONID cookie.
+        backed by the JSESSIONID cookie. Browser-based cross-origin clients must
+        send the request with credentials enabled.
       operationId: login
       requestBody:
         content:
@@ -254,21 +222,25 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Bad Request
+          description: Validation failed for the submitted login payload.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiErrorResponse"
         "200":
           description: Successful login. The response body describes the authenticated
             user and the response sets JSESSIONID.
+          headers:
+            Access-Control-Allow-Origin:
+              description: Returned for allowed browser origins on cross-origin requests.
+              schema:
+                type: string
+            Access-Control-Allow-Credentials:
+              description: Returned as true for allowed browser origins so the session
+                cookie can be stored by the client.
+              schema:
+                type: string
           content:
             application/json:
               schema:
@@ -295,18 +267,12 @@ paths:
               $ref: "#/components/schemas/ForgotPasswordRequest"
         required: true
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Bad Request
+          description: Validation failed for the submitted email payload.
           content:
-            '*/*':
+            application/json:
               schema:
-                $ref: "#/components/schemas/ErrorResponse"
+                $ref: "#/components/schemas/ApiErrorResponse"
         "200":
           description: Request accepted.
           content:
@@ -322,18 +288,6 @@ paths:
         the backend is reachable.
       operationId: ping
       responses:
-        "409":
-          description: Conflict
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "400":
-          description: Bad Request
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Public ping response.
           content:
@@ -342,8 +296,9 @@ paths:
                 $ref: "#/components/schemas/PublicPingResponse"
 components:
   schemas:
-    ErrorResponse:
+    SimpleErrorResponse:
       type: object
+      description: Simple application-defined error response body.
       properties:
         error:
           type: string

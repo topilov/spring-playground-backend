@@ -31,7 +31,7 @@ import me.topilov.springplayground.mail.MailProperties
 import me.topilov.springplayground.profile.domain.UserProfile
 import me.topilov.springplayground.profile.repository.UserProfileRepository
 import org.slf4j.LoggerFactory
-import org.springframework.http.HttpStatus
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
@@ -70,16 +70,48 @@ class AuthService(
     private val transactionTemplate = TransactionTemplate(transactionManager)
 
     fun register(@Valid request: RegisterRequest): RegisterResponse {
-        val registration = requireNotNull(transactionTemplate.execute<RegisteredUser> {
-            val username = request.username.trim()
-            val email = request.email.trim().lowercase()
+        val username = request.username.trim()
+        val email = request.email.trim().lowercase()
 
-            if (authUserRepository.existsByUsernameIgnoreCase(username)) {
-                throw AuthUsernameAlreadyUsedException(username)
-            }
+        val registration = try {
+            requireNotNull(transactionTemplate.execute<RegisteredUser> {
+                if (authUserRepository.existsByUsernameIgnoreCase(username)) {
+                    throw AuthUsernameAlreadyUsedException(username)
+                }
 
-            if (authUserRepository.existsByEmailIgnoreCase(email)) {
-                throw AuthEmailAlreadyUsedException(email)
+                if (authUserRepository.existsByEmailIgnoreCase(email)) {
+                    throw AuthEmailAlreadyUsedException(email)
+                }
+
+                val user = authUserRepository.save(
+                    AuthUser(
+                        username = username,
+                        email = email,
+                        passwordHash = requireNotNull(passwordEncoder.encode(request.password)) {
+                            "Encoded password is missing"
+                        },
+                    ),
+                )
+
+                userProfileRepository.save(
+                    UserProfile(
+                        user = user,
+                        displayName = username,
+                        bio = "",
+                    ),
+                )
+
+                RegisteredUser(
+                    userId = requireNotNull(user.id) { "Persisted user id is missing" },
+                    username = user.username,
+                    email = user.email,
+                )
+            })
+        } catch (exception: DataIntegrityViolationException) {
+            when {
+                authUserRepository.existsByUsernameIgnoreCase(username) -> throw AuthUsernameAlreadyUsedException(username)
+                authUserRepository.existsByEmailIgnoreCase(email) -> throw AuthEmailAlreadyUsedException(email)
+                else -> throw exception
             }
 
             val user = authUserRepository.save(
@@ -267,7 +299,6 @@ class AuthService(
         authentication: Authentication?,
     ) {
         logoutHandler.logout(servletRequest, servletResponse, authentication)
-        servletResponse.status = HttpStatus.NO_CONTENT.value()
     }
 
     private fun buildResetUrl(rawToken: String): String {

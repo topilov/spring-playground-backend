@@ -1,6 +1,7 @@
 package me.topilov.springplayground.auth.web
 
 import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.headers.Header
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -22,6 +23,8 @@ import me.topilov.springplayground.auth.dto.ResetPasswordResponse
 import me.topilov.springplayground.auth.dto.VerifyEmailRequest
 import me.topilov.springplayground.auth.dto.VerifyEmailResponse
 import me.topilov.springplayground.auth.service.AuthService
+import me.topilov.springplayground.shared.dto.ApiErrorResponse
+import me.topilov.springplayground.shared.dto.SimpleErrorResponse
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.PostMapping
@@ -43,6 +46,16 @@ class AuthController(
     @ApiResponses(
         value = [
             ApiResponse(
+                responseCode = "400",
+                description = "Validation failed for the submitted registration payload.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = ApiErrorResponse::class),
+                    ),
+                ],
+            ),
+            ApiResponse(
                 responseCode = "200",
                 description = "Successful registration.",
                 content = [
@@ -52,7 +65,16 @@ class AuthController(
                     ),
                 ],
             ),
-            ApiResponse(responseCode = "409", description = "Username or email is already in use."),
+            ApiResponse(
+                responseCode = "409",
+                description = "Username or email is already in use.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = SimpleErrorResponse::class),
+                    ),
+                ],
+            ),
         ],
     )
     @PostMapping("/register")
@@ -117,6 +139,16 @@ class AuthController(
     @ApiResponses(
         value = [
             ApiResponse(
+                responseCode = "400",
+                description = "Validation failed for the submitted email payload.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = ApiErrorResponse::class),
+                    ),
+                ],
+            ),
+            ApiResponse(
                 responseCode = "200",
                 description = "Request accepted.",
                 content = [
@@ -150,7 +182,16 @@ class AuthController(
                     ),
                 ],
             ),
-            ApiResponse(responseCode = "400", description = "Reset token is invalid or expired."),
+            ApiResponse(
+                responseCode = "400",
+                description = "Validation failed or the reset token is invalid or expired.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(oneOf = [ApiErrorResponse::class, SimpleErrorResponse::class]),
+                    ),
+                ],
+            ),
         ],
     )
     @PostMapping("/reset-password")
@@ -160,14 +201,36 @@ class AuthController(
 
     @Operation(
         summary = "Login",
-        description = "Authenticates by username or email and creates a server-side session backed by the JSESSIONID cookie.",
+        description = "Authenticates by username or email and creates a server-side session backed by the JSESSIONID cookie. Browser-based cross-origin clients must send the request with credentials enabled.",
         requestBody = io.swagger.v3.oas.annotations.parameters.RequestBody(required = true),
     )
     @ApiResponses(
         value = [
             ApiResponse(
+                responseCode = "400",
+                description = "Validation failed for the submitted login payload.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = ApiErrorResponse::class),
+                    ),
+                ],
+            ),
+            ApiResponse(
                 responseCode = "200",
                 description = "Successful login. The response body describes the authenticated user and the response sets JSESSIONID.",
+                headers = [
+                    Header(
+                        name = "Access-Control-Allow-Origin",
+                        description = "Returned for allowed browser origins on cross-origin requests.",
+                        schema = Schema(type = "string"),
+                    ),
+                    Header(
+                        name = "Access-Control-Allow-Credentials",
+                        description = "Returned as true for allowed browser origins so the session cookie can be stored by the client.",
+                        schema = Schema(type = "string"),
+                    ),
+                ],
                 content = [
                     Content(
                         mediaType = "application/json",

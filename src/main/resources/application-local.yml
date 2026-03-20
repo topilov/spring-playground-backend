@@ -3,3 +3,9 @@ spring:
     url: jdbc:postgresql://localhost:5432/spring_playground
     username: spring
     password: spring
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
