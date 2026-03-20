@@ -3,6 +3,8 @@ package me.topilov.springplayground.auth.web
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import me.topilov.springplayground.auth.dto.LoginRequest
+import me.topilov.springplayground.auth.dto.LoginResponse
 import me.topilov.springplayground.auth.service.AuthService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
@@ -18,10 +20,10 @@ class AuthController(
 ) {
     @PostMapping("/login")
     fun login(
-        @Valid @RequestBody request: AuthService.LoginRequest,
+        @Valid @RequestBody request: LoginRequest,
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
-    ): AuthService.LoginResponse = authService.login(request, servletRequest, servletResponse)
+    ): LoginResponse = authService.login(request, servletRequest, servletResponse)
 
     @PostMapping("/logout")
     fun logout(

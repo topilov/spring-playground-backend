@@ -3,7 +3,8 @@ package me.topilov.springplayground.auth.service
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
+import me.topilov.springplayground.auth.dto.LoginRequest
+import me.topilov.springplayground.auth.dto.LoginResponse
 import me.topilov.springplayground.auth.security.AppUserPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.security.authentication.AuthenticationManager
@@ -58,19 +59,4 @@ class AuthService(
         logoutHandler.logout(servletRequest, servletResponse, authentication)
         servletResponse.status = HttpStatus.NO_CONTENT.value()
     }
-
-    data class LoginRequest(
-        @field:NotBlank
-        val usernameOrEmail: String,
-        @field:NotBlank
-        val password: String,
-    )
-
-    data class LoginResponse(
-        val authenticated: Boolean = true,
-        val userId: Long,
-        val username: String,
-        val email: String,
-        val role: String,
-    )
 }
