@@ -51,6 +51,29 @@ Implement the feature as a minimal, production-shaped extension of the current a
 
 This approach avoids premature infrastructure while still delivering a complete end-to-end feature set.
 
+## Endpoint Policy
+
+Public endpoints:
+
+- `GET /actuator/health`
+- `GET /api/public/ping`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `POST /api/auth/register`
+- `POST /api/auth/forgot-password`
+- `POST /api/auth/reset-password`
+
+Authenticated endpoints:
+
+- `GET /api/profile/me`
+- `PUT /api/profile/me`
+- any future user-account endpoints that operate on an authenticated session rather than a one-time reset token
+
+Default policy:
+
+- all endpoints are authenticated unless explicitly listed as public
+- the new registration and password reset endpoints stay public because they must work before a user has a session
+
 ## API Design
 
 ### `POST /api/auth/register`
@@ -73,6 +96,7 @@ Behavior:
 - create `AuthUser`
 - create a default `UserProfile`
 - send a `welcome` email after successful persistence
+- do not create an authenticated session and do not auto-login the user
 - return a success response with basic created-user data
 
 Suggested response shape:
@@ -185,7 +209,7 @@ Core components:
 - `MailProperties`
   - `from`
   - `app-name`
-  - `base-url`
+  - `public-base-url`
   - `reset-password-path`
   - `password-reset-ttl`
 - `EmailTemplate` enum or sealed representation
@@ -220,6 +244,20 @@ Template variables:
 
 Plain HTML templates are sufficient; no separate text variant is required for this change.
 
+### Reset Link URL
+
+The reset link in the email should target the user-facing application URL, not the backend service URL.
+
+- `public-base-url` should point to the frontend or other public entrypoint the user opens in a browser
+- `reset-password-path` should be a frontend route such as `/reset-password`
+- the final link is composed from `public-base-url`, `reset-password-path`, and the raw token
+
+Example:
+
+```text
+https://app.example.com/reset-password?token=...
+```
+
 ## Application Flow
 
 ### Registration Flow
@@ -228,10 +266,19 @@ Plain HTML templates are sufficient; no separate text variant is required for th
 2. Service checks uniqueness constraints.
 3. Service persists `AuthUser`.
 4. Service persists matching `UserProfile`.
-5. Service sends welcome email.
-6. Controller returns the success payload.
+5. Transaction commits the new user and profile.
+6. Service attempts to send the welcome email after commit.
+7. Controller returns the success payload.
 
-If email sending fails after persistence, the request should fail and the transaction should roll back if the mail send participates after successful persistence inside the transactional method. The implementation should be explicit about this behavior and keep it simple.
+Registration does not auto-login the user. After a successful registration, the client must call the normal login endpoint to create a session.
+
+Mail failure policy for registration:
+
+- user creation and profile creation happen in one transaction
+- welcome email sending happens after the transaction commits
+- if welcome email delivery fails, the created account remains valid
+- the endpoint still returns success because account creation is the primary contract of the endpoint
+- the failure should be logged clearly so it can be diagnosed
 
 ### Forgot Password Flow
 
@@ -241,10 +288,19 @@ If email sending fails after persistence, the request should fail and the transa
 4. If present:
    - invalidate active tokens
    - create new token
-   - persist hashed token metadata
-   - compose reset URL from `base-url`, `reset-password-path`, and raw token
-   - send reset email
+   - persist hashed token metadata in one transaction
+   - commit token changes
+   - compose reset URL from `public-base-url`, `reset-password-path`, and raw token
+   - attempt to send reset email after commit
 5. Return accepted response.
+
+Mail failure policy for forgot-password:
+
+- the endpoint always returns the same accepted response, whether or not the email exists
+- reset-token persistence happens before the email attempt
+- if reset email delivery fails, the response still stays generic to avoid leaking whether the email belongs to an account
+- the failure should be logged clearly so the issue is visible operationally
+- a later forgot-password request may issue a fresh token and invalidate prior active tokens
 
 ### Reset Password Flow
 
@@ -255,6 +311,12 @@ If email sending fails after persistence, the request should fail and the transa
 5. Service updates the user's password hash.
 6. Service marks the token used and invalidates siblings.
 7. Return success response.
+
+Transaction policy for reset-password:
+
+- password update and token state changes happen in one transaction
+- if password persistence fails, the token must remain unused
+- there is no outgoing email in this flow
 
 ## Validation and Error Handling
 
@@ -311,7 +373,7 @@ app:
   mail:
     from: ${MAIL_FROM:no-reply@example.com}
     app-name: ${MAIL_APP_NAME:Spring Playground}
-    base-url: ${APP_BASE_URL:http://localhost:8080}
+    public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
     reset-password-path: ${APP_RESET_PASSWORD_PATH:/reset-password}
     password-reset-ttl: PT30M
 ```
