@@ -30,3 +30,4 @@ build/
 out/
 .idea/
 .worktrees/
+.DS_STORE

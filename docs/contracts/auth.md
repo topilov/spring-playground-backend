@@ -2,6 +2,183 @@
 
 Machine-readable contract: `openapi/openapi.yaml` and runtime `/v3/api-docs`.
 
+## POST /api/auth/register
+
+**Purpose**
+
+Create a new user account and default profile, then send a welcome email when delivery succeeds.
+
+**Authentication**
+
+No prior authentication required.
+
+**Request Body**
+
+```json
+{
+  "username": "new-user",
+  "email": "new-user@example.com",
+  "password": "very-secret-password"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "username": "string, required, must not be blank, max 64 chars",
+  "email": "string, required, must be a valid email, max 255 chars",
+  "password": "string, required, must not be blank, min 8 chars, max 100 chars"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "userId": 2,
+  "username": "new-user",
+  "email": "new-user@example.com"
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `409 Conflict` when the username or email is already used.
+
+**curl**
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"new-user","email":"new-user@example.com","password":"very-secret-password"}' \
+  http://localhost:8080/api/auth/register
+```
+
+**Notes**
+
+- Registration creates the auth user and a default profile.
+- Registration does not create an authenticated session.
+- Welcome email delivery is attempted after successful persistence.
+
+## POST /api/auth/forgot-password
+
+**Purpose**
+
+Accept an email address and issue a password reset token when the account exists.
+
+**Authentication**
+
+No prior authentication required.
+
+**Request Body**
+
+```json
+{
+  "email": "demo@example.com"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "email": "string, required, must be a valid email, max 255 chars"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "accepted": true
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- No user-specific error is exposed. Current implementation returns the same accepted response for existing and missing emails.
+
+**curl**
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"demo@example.com"}' \
+  http://localhost:8080/api/auth/forgot-password
+```
+
+**Notes**
+
+- When the account exists, backend stores a reset token and attempts to send a reset email.
+- When the account does not exist, backend still returns the same accepted response.
+
+## POST /api/auth/reset-password
+
+**Purpose**
+
+Reset the password for an account using a valid reset token.
+
+**Authentication**
+
+No prior authentication required.
+
+**Request Body**
+
+```json
+{
+  "token": "token-from-email",
+  "newPassword": "new-very-secret-password"
+}
+```
+
+Current request shape:
+
+```json
+{
+  "token": "string, required, must not be blank",
+  "newPassword": "string, required, must not be blank, min 8 chars, max 100 chars"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "reset": true
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when the reset token is invalid or expired.
+
+**curl**
+
+```bash
+curl -i \
+  -H 'Content-Type: application/json' \
+  -d '{"token":"token-from-email","newPassword":"new-very-secret-password"}' \
+  http://localhost:8080/api/auth/reset-password
+```
+
+**Notes**
+
+- Successful reset invalidates all active reset tokens for the user.
+- Successful reset updates the stored password hash and does not auto-login the user.
+
 ## POST /api/auth/login
 
 **Purpose**

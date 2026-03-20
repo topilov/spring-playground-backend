@@ -23,6 +23,18 @@ paths:
       description: Returns the profile linked to the current authenticated session.
       operationId: currentProfile
       responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Current profile.
           content:
@@ -48,24 +60,95 @@ paths:
               $ref: "#/components/schemas/UpdateProfileRequest"
         required: true
       responses:
-        "200":
-          description: Updated profile.
+        "409":
+          description: Conflict
           content:
-            application/json:
+            '*/*':
               schema:
-                $ref: "#/components/schemas/ProfileResponse"
+                $ref: "#/components/schemas/ErrorResponse"
         "400":
           description: Validation failed for the submitted profile payload.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApiErrorResponse"
+        "200":
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
         "401":
           description: Missing or invalid JSESSIONID session cookie.
         "404":
           description: Authenticated user has no linked profile.
       security:
       - sessionCookie: []
+  /api/auth/reset-password:
+    post:
+      tags:
+      - Auth
+      summary: Reset password
+      description: Resets a password using a valid reset token.
+      operationId: resetPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+        required: true
+      responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Reset token is invalid or expired.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: Password reset completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ResetPasswordResponse"
+  /api/auth/register:
+    post:
+      tags:
+      - Auth
+      summary: Register
+      description: "Creates a new user account and default profile, then sends a welcome\
+        \ email when mail delivery succeeds."
+      operationId: register
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+        required: true
+      responses:
+        "409":
+          description: Username or email is already in use.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: Successful registration.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterResponse"
   /api/auth/logout:
     post:
       tags:
@@ -75,6 +158,18 @@ paths:
         204 even when no active session exists.
       operationId: logout
       responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "204":
           description: Logout completed.
   /api/auth/login:
@@ -92,6 +187,18 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
         required: true
       responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Successful login. The response body describes the authenticated
             user and the response sets JSESSIONID.
@@ -101,6 +208,39 @@ paths:
                 $ref: "#/components/schemas/LoginResponse"
         "401":
           description: Invalid credentials or rejected login request.
+  /api/auth/forgot-password:
+    post:
+      tags:
+      - Auth
+      summary: Forgot password
+      description: Accepts an email address and sends a reset link when the account
+        exists. The response is still accepted when the account is missing.
+      operationId: forgotPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+        required: true
+      responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "200":
+          description: Request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForgotPasswordResponse"
   /api/public/ping:
     get:
       tags:
@@ -110,6 +250,18 @@ paths:
         the backend is reachable.
       operationId: ping
       responses:
+        "409":
+          description: Conflict
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Public ping response.
           content:
@@ -118,6 +270,13 @@ paths:
                 $ref: "#/components/schemas/PublicPingResponse"
 components:
   schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+      - error
     UpdateProfileRequest:
       type: object
       description: Payload used to update the current authenticated user's profile.
@@ -193,6 +352,60 @@ components:
       - path
       - status
       - timestamp
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          maxLength: 100
+          minLength: 8
+      required:
+      - newPassword
+      - token
+    ResetPasswordResponse:
+      type: object
+      properties:
+        reset:
+          type: boolean
+      required:
+      - reset
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 64
+          minLength: 0
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+        password:
+          type: string
+          maxLength: 100
+          minLength: 8
+      required:
+      - email
+      - password
+      - username
+    RegisterResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        email:
+          type: string
+      required:
+      - email
+      - userId
+      - username
     LoginRequest:
       type: object
       description: Credentials used for session-based login.
@@ -236,6 +449,23 @@ components:
       - role
       - userId
       - username
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 0
+      required:
+      - email
+    ForgotPasswordResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+      required:
+      - accepted
     PublicPingResponse:
       type: object
       description: Simple public reachability response.
