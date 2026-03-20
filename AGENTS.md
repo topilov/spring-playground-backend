@@ -65,12 +65,22 @@ This repository is the backend source of truth for the HTTP API contract. Codex 
 - Start local dependencies with:
   - `docker compose up -d`
 - This repository currently expects local PostgreSQL and Redis for realistic backend startup and health checks.
+- Local email development should use Mailpit from `compose.yaml` instead of an external SMTP provider when possible.
 - The local backend profile is defined in `src/main/resources/application-local.yml`.
 - Start the backend locally with:
   - `./gradlew bootRun --args='--spring.profiles.active=local'`
+- For local email flows, prefer these env values:
+  - `MAIL_HOST=localhost`
+  - `MAIL_PORT=1025`
+  - `MAIL_SMTP_AUTH=false`
+  - `MAIL_SMTP_STARTTLS=false`
+  - `MAIL_SMTP_SSL_ENABLE=false`
+- Mailpit web UI is available at:
+  - `http://localhost:8025`
 - When validating runtime behavior, verify the app directly instead of relying only on static reasoning:
   - `curl -i http://127.0.0.1:8080/actuator/health`
   - `curl -i http://127.0.0.1:8080/api/public/ping`
+- When validating mail flows locally, inspect messages in Mailpit and open the generated verification or reset links from the Mailpit UI.
 - For API contract work, refresh and inspect runtime OpenAPI from the running app:
   - `curl http://localhost:8080/v3/api-docs`
   - `curl http://localhost:8080/v3/api-docs.yaml`

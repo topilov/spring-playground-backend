@@ -9,6 +9,7 @@ spring:
     properties:
       mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
       mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:false}
+      mail.smtp.ssl.enable: ${MAIL_SMTP_SSL_ENABLE:false}
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/spring_playground}
     username: ${DB_USERNAME:spring}

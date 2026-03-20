@@ -55,6 +55,8 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Generate contract site assets
+        env:
+          MANAGEMENT_HEALTH_REDIS_ENABLED: "false"
         run: |
           set -euo pipefail
 

@@ -31,3 +31,4 @@ out/
 .idea/
 .worktrees/
 .DS_STORE
+.env.local
