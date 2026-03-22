@@ -26,16 +26,16 @@ server:
 
 app:
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:3000}
   passkeys:
     rp-id: ${APP_PASSKEY_RP_ID:localhost}
     rp-name: ${APP_PASSKEY_RP_NAME:Spring Playground Test}
-    origins: ${APP_PASSKEY_ORIGINS:http://localhost:5173}
+    origins: ${APP_PASSKEY_ORIGINS:http://localhost:3000}
     ceremony-ttl: ${APP_PASSKEY_CEREMONY_TTL:PT5M}
   mail:
     from: ${MAIL_FROM:test-no-reply@example.com}
     app-name: ${MAIL_APP_NAME:Spring Playground Test}
-    public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:5173}
+    public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
     verify-email-path: ${APP_VERIFY_EMAIL_PATH:/verify-email}
     email-verification-ttl: ${APP_EMAIL_VERIFICATION_TTL:PT24H}
     reset-password-path: ${APP_RESET_PASSWORD_PATH:/reset-password}
