@@ -2,11 +2,13 @@ package me.topilov.springplayground.mail
 
 import com.resend.Resend
 import com.resend.services.emails.model.CreateEmailOptions
+import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
 import org.thymeleaf.context.Context
 import org.thymeleaf.spring6.SpringTemplateEngine
 
 @Service
+@Profile("!test")
 class ResendEmailService(
     private val resend: Resend,
     private val templateEngine: SpringTemplateEngine,
