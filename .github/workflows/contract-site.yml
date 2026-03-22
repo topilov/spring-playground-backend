@@ -66,7 +66,7 @@ jobs:
           cp docs/openapi.md site/docs/openapi.md
           touch site/.nojekyll
 
-          ./gradlew bootRun > backend.log 2>&1 &
+          ./gradlew bootRun -Dspring.profiles.active=local > backend.log 2>&1 &
           APP_PID=$!
 
           show_backend_log() {

@@ -3,9 +3,6 @@ spring:
     show-sql: false
   flyway:
     enabled: true
-  mail:
-    host: ${MAIL_HOST:localhost}
-    port: ${MAIL_PORT:2525}
   data:
     redis:
       url: ${REDIS_URL:redis://localhost:6379}
@@ -33,6 +30,7 @@ app:
     origins: ${APP_PASSKEY_ORIGINS:http://localhost:3000}
     ceremony-ttl: ${APP_PASSKEY_CEREMONY_TTL:PT5M}
   mail:
+    apiKey: ${RESEND_API_KEY}
     from: ${MAIL_FROM:test-no-reply@example.com}
     app-name: ${MAIL_APP_NAME:Spring Playground Test}
     public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:3000}
