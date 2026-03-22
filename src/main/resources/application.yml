@@ -1,15 +1,6 @@
 spring:
   application:
     name: spring-playground
-  mail:
-    host: ${MAIL_HOST:localhost}
-    port: ${MAIL_PORT:25}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
-      mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:false}
-      mail.smtp.ssl.enable: ${MAIL_SMTP_SSL_ENABLE:false}
   datasource:
     url: ${DB_URL:}
     username: ${DB_USERNAME:}
@@ -58,7 +49,8 @@ app:
     origins: ${APP_PASSKEY_ORIGINS:https://topilov.dev}
     ceremony-ttl: ${APP_PASSKEY_CEREMONY_TTL:PT5M}
   mail:
-    from: ${MAIL_FROM:no-reply@example.com}
+    api-key: ${RESEND_API_KEY}
+    from: ${MAIL_FROM}
     app-name: ${MAIL_APP_NAME:Spring Playground}
     public-base-url: ${APP_PUBLIC_BASE_URL:https://topilov.dev}
     verify-email-path: ${APP_VERIFY_EMAIL_PATH:/verify-email}

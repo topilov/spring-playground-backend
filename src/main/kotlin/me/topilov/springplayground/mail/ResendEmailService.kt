@@ -1,14 +1,14 @@
 package me.topilov.springplayground.mail
 
-import org.springframework.mail.javamail.JavaMailSender
-import org.springframework.mail.javamail.MimeMessageHelper
+import com.resend.Resend
+import com.resend.services.emails.model.CreateEmailOptions
 import org.springframework.stereotype.Service
 import org.thymeleaf.context.Context
 import org.thymeleaf.spring6.SpringTemplateEngine
 
 @Service
-class ThymeleafEmailService(
-    private val javaMailSender: JavaMailSender,
+class ResendEmailService(
+    private val resend: Resend,
     private val templateEngine: SpringTemplateEngine,
     private val mailProperties: MailProperties,
 ) : EmailService {
@@ -57,13 +57,14 @@ class ThymeleafEmailService(
         }
 
         val htmlBody = templateEngine.process(templateName, context)
-        val message = javaMailSender.createMimeMessage()
-        val helper = MimeMessageHelper(message, "UTF-8")
-        helper.setFrom(mailProperties.from)
-        helper.setTo(recipientEmail)
-        helper.setSubject(subject)
-        helper.setText(htmlBody, true)
 
-        javaMailSender.send(message)
+        val params = CreateEmailOptions.builder()
+            .from(mailProperties.from)
+            .to(recipientEmail)
+            .subject(subject)
+            .html(htmlBody)
+            .build()
+
+        resend.emails().send(params)
     }
 }

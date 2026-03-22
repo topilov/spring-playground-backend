@@ -5,6 +5,7 @@ import java.time.Duration
 
 @ConfigurationProperties("app.mail")
 data class MailProperties(
+    val apiKey: String = "",
     val from: String = "no-reply@example.com",
     val appName: String = "Spring Playground",
     val publicBaseUrl: String = "",
