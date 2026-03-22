@@ -42,17 +42,17 @@ server:
 
 app:
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:https://topilov.dev}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:https://auth.topilov.dev}
   passkeys:
-    rp-id: ${APP_PASSKEY_RP_ID:topilov.dev}
+    rp-id: ${APP_PASSKEY_RP_ID:auth.topilov.dev}
     rp-name: ${APP_PASSKEY_RP_NAME:Spring Playground}
-    origins: ${APP_PASSKEY_ORIGINS:https://topilov.dev}
+    origins: ${APP_PASSKEY_ORIGINS:https://auth.topilov.dev}
     ceremony-ttl: ${APP_PASSKEY_CEREMONY_TTL:PT5M}
   mail:
     api-key: ${RESEND_API_KEY}
     from: ${MAIL_FROM}
     app-name: ${MAIL_APP_NAME:Spring Playground}
-    public-base-url: ${APP_PUBLIC_BASE_URL:https://topilov.dev}
+    public-base-url: ${APP_PUBLIC_BASE_URL:https://auth.topilov.dev}
     verify-email-path: ${APP_VERIFY_EMAIL_PATH:/verify-email}
     email-verification-ttl: ${APP_EMAIL_VERIFICATION_TTL:PT24H}
     reset-password-path: ${APP_RESET_PASSWORD_PATH:/reset-password}

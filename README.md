@@ -176,7 +176,7 @@ APP_RESET_PASSWORD_PATH=/reset-password \
 
 `SESSION_COOKIE_SECURE` defaults to `true` outside the `local` and `test` profiles so the session cookie is only sent over HTTPS in non-local environments.
 
-Production-oriented defaults use `https://topilov.dev` for browser origins and public links. The `local` and `test` profiles keep localhost-oriented fallbacks so frontend development can still run over HTTP.
+Production-oriented defaults use `https://auth.topilov.dev` for browser origins and public links. The `local` and `test` profiles keep localhost-oriented fallbacks so frontend development can still run over HTTP.
 
 ## Build and test
 
