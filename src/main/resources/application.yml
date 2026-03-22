@@ -38,6 +38,7 @@ management:
       show-details: never
 
 server:
+  port: ${PORT:8080}
   servlet:
     session:
       cookie:
