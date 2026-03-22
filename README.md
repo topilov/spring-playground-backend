@@ -140,6 +140,10 @@ The application uses Spring Mail for delivery and Thymeleaf templates from `src/
 
 Available properties:
 
+- `DB_URL`
+- `DB_USERNAME`
+- `DB_PASSWORD`
+- `REDIS_URL`
 - `APP_CORS_ALLOWED_ORIGINS`
 - `APP_PASSKEY_RP_ID`
 - `APP_PASSKEY_RP_NAME`
@@ -157,18 +161,22 @@ Available properties:
 - `APP_RESET_PASSWORD_PATH`
 - `APP_PASSWORD_RESET_TTL`
 - `SESSION_COOKIE_SECURE`
+- `SESSION_COOKIE_SAME_SITE`
 
 Example local setup for a frontend reset link:
 
 ```bash
-APP_PUBLIC_BASE_URL=http://localhost:3000 \
+APP_CORS_ALLOWED_ORIGINS=http://localhost:5173 \
+APP_PUBLIC_BASE_URL=http://localhost:5173 \
+APP_PASSKEY_RP_ID=localhost \
+APP_PASSKEY_ORIGINS=http://localhost:5173 \
 APP_RESET_PASSWORD_PATH=/reset-password \
 ./gradlew bootRun --args='--spring.profiles.active=local'
 ```
 
 `SESSION_COOKIE_SECURE` defaults to `true` outside the `local` and `test` profiles so the session cookie is only sent over HTTPS in non-local environments.
 
-Local passkey defaults use `localhost` as the relying-party id and allow `http://localhost:3000`, `http://localhost:4173`, and `http://localhost:5173` as browser origins.
+Production-oriented defaults use `https://topilov.dev` for browser origins and public links. The `local` and `test` profiles keep localhost-oriented fallbacks so frontend development can still run over HTTP.
 
 ## Build and test
 

@@ -9,6 +9,7 @@ data class PasskeyAuthenticationPublicKeyOptionsDto(
     @field:Schema(example = "base64url-challenge")
     val challenge: String,
     val timeout: Long? = null,
+    @field:Schema(example = "topilov.dev")
     val rpId: String? = null,
     val allowCredentials: List<PasskeyCredentialDescriptorDto> = emptyList(),
     val userVerification: String? = null,
