@@ -11,6 +11,8 @@ import me.topilov.springplayground.auth.TestMailConfiguration
 import me.topilov.springplayground.auth.TestPasswordResetConfiguration
 import me.topilov.springplayground.auth.passkey.InMemoryPasskeyCeremonyStore
 import me.topilov.springplayground.auth.passkey.TestPasskeyConfiguration
+import me.topilov.springplayground.config.CorsProperties
+import me.topilov.springplayground.mail.MailProperties
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
@@ -58,8 +60,6 @@ import java.nio.charset.StandardCharsets
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD,
 )
 class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
-    private val frontendOrigin = "http://localhost:4173"
-
     @Autowired
     lateinit var webApplicationContext: WebApplicationContext
 
@@ -77,6 +77,12 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
     @Autowired
     lateinit var inMemoryPasskeyCeremonyStore: InMemoryPasskeyCeremonyStore
+
+    @Autowired
+    lateinit var corsProperties: CorsProperties
+
+    @Autowired
+    lateinit var mailProperties: MailProperties
 
     lateinit var mockMvc: MockMvc
 
@@ -107,7 +113,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
     @Test
     fun `openapi endpoint is public and exposes current api paths`() {
-        mockMvc.perform(get("/v3/api-docs"))
+        val result = mockMvc.perform(get("/v3/api-docs"))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.openapi").exists())
             .andExpect(jsonPath("$.paths['/api/public/ping']").exists())
@@ -123,6 +129,9 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(jsonPath("$.paths['/api/public/ping'].get.responses['409']").doesNotExist())
             .andExpect(jsonPath("$.paths['/api/profile/me'].get.responses['400']").doesNotExist())
             .andExpect(jsonPath("$.paths['/api/profile/me'].get.responses['409']").doesNotExist())
+            .andReturn()
+
+        assertThat(result.response.contentAsString).doesNotContain("http://localhost:8080")
     }
 
     @Test
@@ -154,6 +163,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
     @Test
     fun `login preflight allows frontend origin`() {
+        val frontendOrigin = corsProperties.allowedOrigins.first()
         mockMvc.perform(
             options("/api/auth/login")
                 .header("Origin", frontendOrigin)
@@ -167,6 +177,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
     @Test
     fun `login response includes cors headers for frontend origin`() {
+        val frontendOrigin = corsProperties.allowedOrigins.first()
         mockMvc.perform(
             post("/api/auth/login")
                 .header("Origin", frontendOrigin)
@@ -618,6 +629,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
         assertThat(recordingJavaMailSender.sentMessages()).hasSize(1)
         assertThat(recordingJavaMailSender.sentMessages().single().subject).contains("Reset")
+        assertThat(recordingJavaMailSender.sentMessages().single().htmlBody()).contains(mailProperties.publicBaseUrl)
 
         recordingJavaMailSender.clear()
 

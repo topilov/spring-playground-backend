@@ -5,8 +5,8 @@ import java.time.Duration
 
 @ConfigurationProperties("app.passkeys")
 data class PasskeyProperties(
-    var rpId: String = "localhost",
+    var rpId: String = "",
     var rpName: String = "Spring Playground",
-    var origins: List<String> = listOf("http://localhost:3000"),
+    var origins: List<String> = emptyList(),
     var ceremonyTtl: Duration = Duration.ofMinutes(5),
 )

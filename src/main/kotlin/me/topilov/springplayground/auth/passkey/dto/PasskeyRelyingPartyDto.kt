@@ -6,6 +6,6 @@ import io.swagger.v3.oas.annotations.media.Schema
 data class PasskeyRelyingPartyDto(
     @field:Schema(example = "Spring Playground")
     val name: String,
-    @field:Schema(example = "localhost")
+    @field:Schema(example = "topilov.dev")
     val id: String? = null,
 )

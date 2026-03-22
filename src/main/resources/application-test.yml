@@ -4,8 +4,11 @@ spring:
   flyway:
     enabled: true
   mail:
-    host: localhost
-    port: 2525
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:2525}
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
 
 management:
   health:
@@ -19,18 +22,21 @@ server:
     session:
       cookie:
         secure: false
+        same-site: ${SESSION_COOKIE_SAME_SITE:lax}
 
 app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
   passkeys:
-    rp-id: localhost
-    rp-name: Spring Playground Test
-    origins: http://localhost:3000,http://localhost:4173,http://localhost:5173
-    ceremony-ttl: PT5M
+    rp-id: ${APP_PASSKEY_RP_ID:localhost}
+    rp-name: ${APP_PASSKEY_RP_NAME:Spring Playground Test}
+    origins: ${APP_PASSKEY_ORIGINS:http://localhost:5173}
+    ceremony-ttl: ${APP_PASSKEY_CEREMONY_TTL:PT5M}
   mail:
-    from: test-no-reply@example.com
-    app-name: Spring Playground Test
-    public-base-url: http://localhost:3000
-    verify-email-path: /verify-email
-    email-verification-ttl: PT24H
-    reset-password-path: /reset-password
-    password-reset-ttl: PT30M
+    from: ${MAIL_FROM:test-no-reply@example.com}
+    app-name: ${MAIL_APP_NAME:Spring Playground Test}
+    public-base-url: ${APP_PUBLIC_BASE_URL:http://localhost:5173}
+    verify-email-path: ${APP_VERIFY_EMAIL_PATH:/verify-email}
+    email-verification-ttl: ${APP_EMAIL_VERIFICATION_TTL:PT24H}
+    reset-password-path: ${APP_RESET_PASSWORD_PATH:/reset-password}
+    password-reset-ttl: ${APP_PASSWORD_RESET_TTL:PT30M}
