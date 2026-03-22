@@ -57,6 +57,7 @@ jobs:
       - name: Generate contract site assets
         env:
           MANAGEMENT_HEALTH_REDIS_ENABLED: "false"
+          SPRING_PROFILES_ACTIVE: "local"
         run: |
           set -euo pipefail
 
@@ -66,7 +67,7 @@ jobs:
           cp docs/openapi.md site/docs/openapi.md
           touch site/.nojekyll
 
-          ./gradlew bootRun -Dspring.profiles.active=local > backend.log 2>&1 &
+          ./gradlew bootRun > backend.log 2>&1 &
           APP_PID=$!
 
           show_backend_log() {
