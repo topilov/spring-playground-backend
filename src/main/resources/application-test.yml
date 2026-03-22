@@ -30,6 +30,7 @@ app:
     origins: http://localhost:3000
     ceremony-ttl: PT5M
   mail:
+    enabled: false
     from: test-no-reply@example.com
     app-name: Spring Playground Test
     public-base-url: http://localhost:3000

@@ -20,4 +20,12 @@ app:
     rp-id: localhost
     origins: http://localhost:3000
   mail:
+    enabled: true
+    api-key: ${RESEND_API_KEY}
+    from: no-reply@topilov.dev
+    app-name: Spring Playground
+    verify-email-path: /verify-email
+    email-verification-ttl: PT5M
+    reset-password-path: /reset-password
+    password-reset-ttl: PT5M
     public-base-url: http://localhost:3000

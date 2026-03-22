@@ -49,6 +49,7 @@ app:
     origins: ${APP_PASSKEY_ORIGINS:https://auth.topilov.dev}
     ceremony-ttl: ${APP_PASSKEY_CEREMONY_TTL:PT5M}
   mail:
+    enabled: true
     api-key: ${RESEND_API_KEY}
     from: ${MAIL_FROM}
     app-name: ${MAIL_APP_NAME:Spring Playground}

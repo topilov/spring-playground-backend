@@ -2,13 +2,16 @@ package me.topilov.springplayground.mail
 
 import com.resend.Resend
 import com.resend.services.emails.model.CreateEmailOptions
-import org.springframework.context.annotation.Profile
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
 import org.thymeleaf.context.Context
 import org.thymeleaf.spring6.SpringTemplateEngine
 
 @Service
-@Profile("!test")
+@ConditionalOnProperty(
+    name = ["app.mail.enabled"],
+    havingValue = "true"
+)
 class ResendEmailService(
     private val resend: Resend,
     private val templateEngine: SpringTemplateEngine,
