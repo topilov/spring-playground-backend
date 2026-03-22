@@ -1,14 +1,7 @@
 package me.topilov.springplayground
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import jakarta.mail.Multipart
-import jakarta.mail.internet.MimeMessage
-import me.topilov.springplayground.auth.InMemoryEmailVerificationTokenStore
-import me.topilov.springplayground.auth.InMemoryPasswordResetTokenStore
-import me.topilov.springplayground.auth.RecordingJavaMailSender
-import me.topilov.springplayground.auth.TestEmailVerificationConfiguration
-import me.topilov.springplayground.auth.TestMailConfiguration
-import me.topilov.springplayground.auth.TestPasswordResetConfiguration
+import me.topilov.springplayground.auth.*
 import me.topilov.springplayground.auth.passkey.InMemoryPasskeyCeremonyStore
 import me.topilov.springplayground.auth.passkey.TestPasskeyConfiguration
 import me.topilov.springplayground.config.CorsProperties
@@ -20,26 +13,20 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
-import org.springframework.http.MediaType
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.mock.web.MockHttpSession
 import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity
 import org.springframework.test.context.jdbc.Sql
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.MvcResult
-import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
-import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
+import java.net.URL
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 
@@ -67,7 +54,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     lateinit var jdbcTemplate: JdbcTemplate
 
     @Autowired
-    lateinit var recordingJavaMailSender: RecordingJavaMailSender
+    lateinit var recordingEmailService: RecordingEmailService
 
     @Autowired
     lateinit var inMemoryEmailVerificationTokenStore: InMemoryEmailVerificationTokenStore
@@ -88,7 +75,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
     @BeforeEach
     fun setUp() {
-        recordingJavaMailSender.clear()
+        recordingEmailService.clear()
         inMemoryEmailVerificationTokenStore.clear()
         inMemoryPasswordResetTokenStore.clear()
         inMemoryPasskeyCeremonyStore.clear()
@@ -556,10 +543,10 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         assertThat(result.response.getCookie("JSESSIONID")).isNull()
         assertThat(userExists(email)).isTrue()
         assertThat(profileExists(email)).isTrue()
-        assertThat(recordingJavaMailSender.sentMessages()).hasSize(1)
-        assertThat(recordingJavaMailSender.sentMessages().single().allRecipients.single().toString()).isEqualTo(email)
-        assertThat(recordingJavaMailSender.sentMessages().single().subject).contains("Verify")
-        assertThat(extractToken(recordingJavaMailSender.sentMessages().single())).isNotBlank()
+        assertThat(recordingEmailService.sentEmails()).hasSize(1)
+        assertThat(recordingEmailService.sentEmails().single().recipientEmail).isEqualTo(email)
+        assertThat(recordingEmailService.sentEmails().single().kind).isEqualTo(RecordingEmailService.SentEmail.Kind.VERIFICATION)
+        assertThat(extractToken(recordingEmailService.sentEmails().single())).isNotBlank()
 
         mockMvc.perform(
             post("/api/auth/login")
@@ -627,11 +614,10 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
 
-        assertThat(recordingJavaMailSender.sentMessages()).hasSize(1)
-        assertThat(recordingJavaMailSender.sentMessages().single().subject).contains("Reset")
-        assertThat(recordingJavaMailSender.sentMessages().single().htmlBody()).contains(mailProperties.publicBaseUrl)
+        assertThat(recordingEmailService.sentEmails()).hasSize(1)
+        assertThat(recordingEmailService.sentEmails().single().kind).isEqualTo(RecordingEmailService.SentEmail.Kind.RESET_PASSWORD)
 
-        recordingJavaMailSender.clear()
+        recordingEmailService.clear()
 
         mockMvc.perform(
             post("/api/auth/forgot-password")
@@ -641,7 +627,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
 
-        assertThat(recordingJavaMailSender.sentMessages()).isEmpty()
+        assertThat(recordingEmailService.sentEmails()).isEmpty()
     }
 
     @Test
@@ -671,7 +657,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
 
-        val token = extractToken(recordingJavaMailSender.sentMessages().single())
+        val token = extractToken(recordingEmailService.sentEmails().single())
 
         mockMvc.perform(
             post("/api/auth/verify-email")
@@ -704,8 +690,8 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
 
-        val firstToken = extractToken(recordingJavaMailSender.sentMessages().single())
-        recordingJavaMailSender.clear()
+        val firstToken = extractToken(recordingEmailService.sentEmails().single())
+        recordingEmailService.clear()
 
         mockMvc.perform(
             post("/api/auth/resend-verification-email")
@@ -715,7 +701,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
 
-        val resentMessage = recordingJavaMailSender.sentMessages().single()
+        val resentMessage = recordingEmailService.sentEmails().single()
         val secondToken = extractToken(resentMessage)
         assertThat(secondToken).isNotEqualTo(firstToken)
 
@@ -727,7 +713,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.verified").value(true))
 
-        recordingJavaMailSender.clear()
+        recordingEmailService.clear()
 
         mockMvc.perform(
             post("/api/auth/resend-verification-email")
@@ -737,7 +723,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
 
-        assertThat(recordingJavaMailSender.sentMessages()).isEmpty()
+        assertThat(recordingEmailService.sentEmails()).isEmpty()
     }
 
     @Test
@@ -755,7 +741,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
 
-        val verificationToken = extractToken(recordingJavaMailSender.sentMessages().single())
+        val verificationToken = extractToken(recordingEmailService.sentEmails().single())
         mockMvc.perform(
             post("/api/auth/verify-email")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -763,7 +749,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
 
-        recordingJavaMailSender.clear()
+        recordingEmailService.clear()
 
         mockMvc.perform(
             post("/api/auth/forgot-password")
@@ -772,7 +758,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
 
-        val token = extractToken(recordingJavaMailSender.sentMessages().single())
+        val token = extractToken(recordingEmailService.sentEmails().single())
 
         mockMvc.perform(
             post("/api/auth/reset-password")
@@ -835,8 +821,8 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         Boolean::class.java,
     ) ?: false
 
-    private fun extractToken(message: MimeMessage): String {
-        val html = message.htmlBody()
+    private fun extractToken(message: RecordingEmailService.SentEmail): String {
+        val html = message.url
         val tokenValue = Regex("""token=([^"&]+)""")
             .find(html)
             ?.groupValues
@@ -844,23 +830,6 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             ?: throw AssertionError("Reset token was not found in email body: $html")
 
         return URLDecoder.decode(tokenValue, StandardCharsets.UTF_8)
-    }
-
-    private fun MimeMessage.htmlBody(): String {
-        val messageContent = content
-        return when (messageContent) {
-            is String -> messageContent
-            is Multipart -> {
-                (0 until messageContent.count)
-                    .asSequence()
-                    .map { index -> messageContent.getBodyPart(index).content }
-                    .filterIsInstance<String>()
-                    .firstOrNull()
-                    ?: ""
-            }
-
-            else -> messageContent?.toString().orEmpty()
-        }
     }
 
     private fun uniqueSuffix(): String = System.nanoTime().toString()
@@ -889,8 +858,8 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isOk)
 
-        val token = extractToken(recordingJavaMailSender.sentMessages().single())
-        recordingJavaMailSender.clear()
+        val token = extractToken(recordingEmailService.sentEmails().single())
+        recordingEmailService.clear()
 
         mockMvc.perform(
             post("/api/auth/verify-email")
