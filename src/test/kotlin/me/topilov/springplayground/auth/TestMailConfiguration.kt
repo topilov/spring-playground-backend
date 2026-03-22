@@ -1,50 +1,70 @@
 package me.topilov.springplayground.auth
 
-import jakarta.mail.Session
-import jakarta.mail.internet.MimeMessage
+import me.topilov.springplayground.mail.EmailService
 import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Primary
-import org.springframework.mail.SimpleMailMessage
-import org.springframework.mail.javamail.JavaMailSender
-import org.springframework.mail.javamail.JavaMailSenderImpl
-import java.util.Properties
 
 @TestConfiguration
 class TestMailConfiguration {
     @Bean
-    fun recordingJavaMailSender(): RecordingJavaMailSender = RecordingJavaMailSender()
+    fun recordingJavaMailSender(): RecordingEmailService = RecordingEmailService()
 
     @Bean
     @Primary
-    fun javaMailSender(recordingJavaMailSender: RecordingJavaMailSender): JavaMailSender = recordingJavaMailSender
+    fun javaMailSender(recordingJavaMailSender: RecordingEmailService): EmailService = recordingJavaMailSender
 }
 
-class RecordingJavaMailSender : JavaMailSenderImpl() {
-    private val session = Session.getInstance(Properties())
-    private val sentMessages = mutableListOf<MimeMessage>()
+class RecordingEmailService : EmailService {
+
+    data class SentEmail(
+        val kind: Kind,
+        val recipientEmail: String,
+        val username: String,
+        val url: String,
+        val expiresInMinutes: Long,
+    ) {
+        enum class Kind {
+            VERIFICATION,
+            RESET_PASSWORD,
+        }
+    }
+
+    private val sentEmails = mutableListOf<SentEmail>()
 
     fun clear() {
-        sentMessages.clear()
+        sentEmails.clear()
     }
 
-    fun sentMessages(): List<MimeMessage> = sentMessages.toList()
+    fun sentEmails(): List<SentEmail> = sentEmails.toList()
 
-    override fun createMimeMessage(): MimeMessage = MimeMessage(session)
-
-    override fun send(mimeMessage: MimeMessage) {
-        sentMessages += MimeMessage(mimeMessage)
+    override fun sendVerificationEmail(
+        recipientEmail: String,
+        username: String,
+        verificationUrl: String,
+        expiresInMinutes: Long,
+    ) {
+        sentEmails += SentEmail(
+            kind = SentEmail.Kind.VERIFICATION,
+            recipientEmail = recipientEmail,
+            username = username,
+            url = verificationUrl,
+            expiresInMinutes = expiresInMinutes,
+        )
     }
 
-    override fun send(vararg mimeMessages: MimeMessage) {
-        mimeMessages.forEach(::send)
-    }
-
-    override fun send(simpleMessage: SimpleMailMessage) {
-        throw UnsupportedOperationException("SimpleMailMessage is not used in these tests")
-    }
-
-    override fun send(vararg simpleMessages: SimpleMailMessage) {
-        throw UnsupportedOperationException("SimpleMailMessage is not used in these tests")
+    override fun sendResetPasswordEmail(
+        recipientEmail: String,
+        username: String,
+        resetUrl: String,
+        expiresInMinutes: Long,
+    ) {
+        sentEmails += SentEmail(
+            kind = SentEmail.Kind.RESET_PASSWORD,
+            recipientEmail = recipientEmail,
+            username = username,
+            url = resetUrl,
+            expiresInMinutes = expiresInMinutes,
+        )
     }
 }
