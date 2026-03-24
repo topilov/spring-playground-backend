@@ -29,7 +29,12 @@ class AbuseProtectionService(
         if (policy.captchaRequired) {
             val captchaResult = captchaVerificationService.verify(flow, context.captchaToken, context.remoteIp)
             if (!captchaResult.success) {
-                throw CaptchaValidationFailedException()
+                throw CaptchaValidationFailedException(
+                    flow = flow,
+                    errorCodes = captchaResult.errorCodes,
+                    remoteIp = context.remoteIp,
+                    identifier = context.identifier,
+                )
             }
         }
     }

@@ -336,7 +336,31 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.code").value("CAPTCHA_VALIDATION_FAILED"))
-            .andExpect(jsonPath("$.error").isString)
+            .andExpect(jsonPath("$.error").value("Captcha verification failed. Please try again."))
+    }
+
+    @Test
+    fun `login returns expired captcha message for timeout or duplicate token`() {
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"demo-password","captchaToken":"duplicate-captcha-token"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("CAPTCHA_VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.error").value("Captcha expired. Please try again."))
+    }
+
+    @Test
+    fun `login returns temporarily unavailable captcha message for internal verification errors`() {
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"demo-password","captchaToken":"internal-error-captcha-token"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("CAPTCHA_VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.error").value("Captcha verification is temporarily unavailable. Please try again."))
     }
 
     @Test
