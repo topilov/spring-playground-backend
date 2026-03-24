@@ -25,7 +25,8 @@ class RecordingEmailService : EmailService {
         val expiresInMinutes: Long,
     ) {
         enum class Kind {
-            VERIFICATION,
+            REGISTRATION_VERIFICATION,
+            EMAIL_CHANGE_VERIFICATION,
             RESET_PASSWORD,
         }
     }
@@ -38,14 +39,29 @@ class RecordingEmailService : EmailService {
 
     fun sentEmails(): List<SentEmail> = sentEmails.toList()
 
-    override fun sendVerificationEmail(
+    override fun sendRegistrationVerificationEmail(
         recipientEmail: String,
         username: String,
         verificationUrl: String,
         expiresInMinutes: Long,
     ) {
         sentEmails += SentEmail(
-            kind = SentEmail.Kind.VERIFICATION,
+            kind = SentEmail.Kind.REGISTRATION_VERIFICATION,
+            recipientEmail = recipientEmail,
+            username = username,
+            url = verificationUrl,
+            expiresInMinutes = expiresInMinutes,
+        )
+    }
+
+    override fun sendEmailChangeVerificationEmail(
+        recipientEmail: String,
+        username: String,
+        verificationUrl: String,
+        expiresInMinutes: Long,
+    ) {
+        sentEmails += SentEmail(
+            kind = SentEmail.Kind.EMAIL_CHANGE_VERIFICATION,
             recipientEmail = recipientEmail,
             username = username,
             url = verificationUrl,

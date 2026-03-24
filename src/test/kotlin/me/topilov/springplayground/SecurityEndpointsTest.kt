@@ -28,8 +28,8 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.*
 import org.springframework.test.web.servlet.setup.DefaultMockMvcBuilder
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
-import java.net.URL
 import java.net.URLDecoder
+import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.time.Instant
@@ -786,7 +786,8 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         assertThat(profileExists(email)).isTrue()
         assertThat(recordingEmailService.sentEmails()).hasSize(1)
         assertThat(recordingEmailService.sentEmails().single().recipientEmail).isEqualTo(email)
-        assertThat(recordingEmailService.sentEmails().single().kind).isEqualTo(RecordingEmailService.SentEmail.Kind.VERIFICATION)
+        assertThat(recordingEmailService.sentEmails().single().kind)
+            .isEqualTo(RecordingEmailService.SentEmail.Kind.REGISTRATION_VERIFICATION)
         assertThat(extractToken(recordingEmailService.sentEmails().single())).isNotBlank()
 
         mockMvc.perform(
@@ -1148,8 +1149,10 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(jsonPath("$.accepted").value(true))
 
         assertThat(recordingEmailService.sentEmails()).hasSize(1)
-        assertThat(recordingEmailService.sentEmails().single().kind).isEqualTo(RecordingEmailService.SentEmail.Kind.VERIFICATION)
+        assertThat(recordingEmailService.sentEmails().single().kind)
+            .isEqualTo(RecordingEmailService.SentEmail.Kind.EMAIL_CHANGE_VERIFICATION)
         assertThat(recordingEmailService.sentEmails().single().recipientEmail).isEqualTo(firstEmail.lowercase())
+        assertThat(URI.create(recordingEmailService.sentEmails().single().url).path).isEqualTo("/verify-email-change")
         val firstToken = extractToken(recordingEmailService.sentEmails().single())
         recordingEmailService.clear()
 
@@ -1164,6 +1167,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
         assertThat(recordingEmailService.sentEmails()).hasSize(1)
         assertThat(recordingEmailService.sentEmails().single().recipientEmail).isEqualTo(secondEmail)
+        assertThat(URI.create(recordingEmailService.sentEmails().single().url).path).isEqualTo("/verify-email-change")
         val secondToken = extractToken(recordingEmailService.sentEmails().single())
         assertThat(secondToken).isNotEqualTo(firstToken)
 

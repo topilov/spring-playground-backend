@@ -12,7 +12,7 @@ class ResendEmailService(
     private val templateEngine: SpringTemplateEngine,
     private val mailProperties: MailProperties,
 ) : EmailService {
-    override fun sendVerificationEmail(
+    override fun sendRegistrationVerificationEmail(
         recipientEmail: String,
         username: String,
         verificationUrl: String,
@@ -21,6 +21,23 @@ class ResendEmailService(
         recipientEmail = recipientEmail,
         subject = "Verify your ${mailProperties.appName} email",
         templateName = "mail/verify-email",
+        variables = mapOf(
+            "appName" to mailProperties.appName,
+            "username" to username,
+            "verificationUrl" to verificationUrl,
+            "expiresInMinutes" to expiresInMinutes,
+        ),
+    )
+
+    override fun sendEmailChangeVerificationEmail(
+        recipientEmail: String,
+        username: String,
+        verificationUrl: String,
+        expiresInMinutes: Long,
+    ) = sendHtmlEmail(
+        recipientEmail = recipientEmail,
+        subject = "Confirm your new ${mailProperties.appName} email",
+        templateName = "mail/verify-email-change",
         variables = mapOf(
             "appName" to mailProperties.appName,
             "username" to username,

@@ -356,6 +356,7 @@ curl -i \
 - No CSRF token required.
 - Backend lowercases `newEmail` before uniqueness checks and email delivery.
 - The verification mail is sent to the new email address.
+- The verification link targets a dedicated frontend email-change route and includes the one-time token in the `token` query parameter.
 - Pending email-change tokens are one-time use.
 - Starting a new email-change request invalidates every older pending email-change token for the same user.
 - The current login session remains valid while the user is waiting to verify the new email.

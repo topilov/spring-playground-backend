@@ -1,7 +1,14 @@
 package me.topilov.springplayground.mail
 
 interface EmailService {
-    fun sendVerificationEmail(
+    fun sendRegistrationVerificationEmail(
+        recipientEmail: String,
+        username: String,
+        verificationUrl: String,
+        expiresInMinutes: Long,
+    )
+
+    fun sendEmailChangeVerificationEmail(
         recipientEmail: String,
         username: String,
         verificationUrl: String,
