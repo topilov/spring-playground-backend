@@ -110,6 +110,16 @@ class FakeCaptchaVerificationService : CaptchaVerificationService {
         "invalid-captcha-token",
         -> CaptchaVerificationResult(success = false, errorCodes = listOf("invalid-input-response"))
 
+        "duplicate-captcha-token" -> CaptchaVerificationResult(
+            success = false,
+            errorCodes = listOf("timeout-or-duplicate"),
+        )
+
+        "internal-error-captcha-token" -> CaptchaVerificationResult(
+            success = false,
+            errorCodes = listOf("internal-error"),
+        )
+
         else -> CaptchaVerificationResult(success = true)
     }
 }
