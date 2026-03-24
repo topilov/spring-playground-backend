@@ -7,8 +7,3 @@ interface PendingEmailChangeTokenStore {
     fun invalidateToken(rawToken: String)
     fun invalidateAllTokensForUser(userId: Long)
 }
-
-data class PendingEmailChange(
-    val userId: Long,
-    val newEmail: String,
-)

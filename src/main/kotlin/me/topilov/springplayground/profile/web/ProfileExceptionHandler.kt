@@ -1,7 +1,7 @@
 package me.topilov.springplayground.profile.web
 
 import io.swagger.v3.oas.annotations.Hidden
-import me.topilov.springplayground.auth.web.ErrorResponse
+import me.topilov.springplayground.common.web.ErrorResponse
 import me.topilov.springplayground.profile.exception.InvalidCurrentPasswordException
 import me.topilov.springplayground.profile.exception.InvalidPendingEmailChangeTokenException
 import me.topilov.springplayground.profile.exception.NewEmailMatchesCurrentEmailException

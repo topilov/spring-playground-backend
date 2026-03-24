@@ -1,8 +1,6 @@
 package me.topilov.springplayground.auth.web
 
 import io.swagger.v3.oas.annotations.Hidden
-import me.topilov.springplayground.abuse.exception.CaptchaValidationFailedException
-import me.topilov.springplayground.abuse.exception.RateLimitExceededException
 import me.topilov.springplayground.auth.exception.AuthEmailAlreadyUsedException
 import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedException
 import me.topilov.springplayground.auth.exception.EmailNotVerifiedException
@@ -18,10 +16,9 @@ import me.topilov.springplayground.auth.passkey.exception.DuplicatePasskeyCreden
 import me.topilov.springplayground.auth.passkey.exception.InvalidPasskeyCeremonyException
 import me.topilov.springplayground.auth.passkey.exception.PasskeyAuthenticationFailedException
 import me.topilov.springplayground.auth.passkey.exception.PasskeyNotFoundException
-import me.topilov.springplayground.shared.dto.SimpleErrorResponse
-import org.slf4j.LoggerFactory
+import me.topilov.springplayground.common.web.ErrorResponse
+import me.topilov.springplayground.common.web.SimpleErrorResponse
 import org.springframework.http.HttpStatus
-import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -29,36 +26,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 @Hidden
 @RestControllerAdvice
 class AuthExceptionHandler {
-    @ExceptionHandler(CaptchaValidationFailedException::class)
-    fun handleCaptchaValidationFailed(exception: CaptchaValidationFailedException): ResponseEntity<ErrorResponse> {
-        log.warn(
-            "CAPTCHA_VALIDATION_FAILED flow={} errorCodes={} remoteIp={} identifier={}",
-            exception.flow,
-            exception.errorCodes,
-            exception.remoteIp ?: "unknown",
-            exception.identifier ?: "none",
-        )
-
-        return ResponseEntity.badRequest().body(
-            ErrorResponse(
-                error = exception.message ?: "Bad request",
-                code = "CAPTCHA_VALIDATION_FAILED",
-            ),
-        )
-    }
-
-    @ExceptionHandler(RateLimitExceededException::class)
-    fun handleRateLimitExceeded(exception: RateLimitExceededException): ResponseEntity<ErrorResponse> =
-        ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-            .header("Retry-After", exception.retryAfterSeconds.toString())
-            .body(
-                ErrorResponse(
-                    error = exception.message ?: "Too many requests",
-                    code = exception.code,
-                    retryAfterSeconds = exception.retryAfterSeconds,
-                ),
-            )
-
     @ExceptionHandler(AuthUsernameAlreadyUsedException::class, AuthEmailAlreadyUsedException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
     fun handleConflict(exception: RuntimeException): SimpleErrorResponse =
@@ -122,11 +89,3 @@ class AuthExceptionHandler {
             code = "EMAIL_NOT_VERIFIED",
         )
 }
-
-data class ErrorResponse(
-    val error: String,
-    val code: String? = null,
-    val retryAfterSeconds: Long? = null,
-)
-
-private val log = LoggerFactory.getLogger(AuthExceptionHandler::class.java)

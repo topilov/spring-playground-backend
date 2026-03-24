@@ -12,6 +12,7 @@ import me.topilov.springplayground.auth.passkey.webauthn.PasskeyUserIdentity
 import me.topilov.springplayground.auth.passkey.webauthn.PasskeyWebAuthnService
 import me.topilov.springplayground.auth.passkey.webauthn.StartedPasskeyAuthentication
 import me.topilov.springplayground.auth.passkey.webauthn.StartedPasskeyRegistration
+import me.topilov.springplayground.support.TestObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -32,7 +33,8 @@ class PasskeyRegistrationServiceTest {
         passkeyCeremonyStore = passkeyCeremonyStore,
         passkeyWebAuthnService = passkeyWebAuthnService,
         passkeyManagementService = PasskeyManagementService(passkeyCredentialRepository),
-        passkeyOptionsMapper = PasskeyOptionsMapper(),
+        passkeyOptionsMapper = PasskeyOptionsMapper(TestObjectMapper.instance),
+        objectMapper = TestObjectMapper.instance,
     )
 
     @Test
