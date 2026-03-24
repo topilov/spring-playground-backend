@@ -6,6 +6,12 @@ import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedExcepti
 import me.topilov.springplayground.auth.exception.EmailNotVerifiedException
 import me.topilov.springplayground.auth.exception.InvalidEmailVerificationTokenException
 import me.topilov.springplayground.auth.exception.InvalidPasswordResetTokenException
+import me.topilov.springplayground.auth.exception.InvalidTwoFactorCodeException
+import me.topilov.springplayground.auth.exception.TwoFactorAlreadyEnabledException
+import me.topilov.springplayground.auth.exception.TwoFactorAuthenticationFailedException
+import me.topilov.springplayground.auth.exception.TwoFactorLoginChallengeNotFoundException
+import me.topilov.springplayground.auth.exception.TwoFactorNotEnabledException
+import me.topilov.springplayground.auth.exception.TwoFactorSetupNotStartedException
 import me.topilov.springplayground.auth.passkey.exception.DuplicatePasskeyCredentialException
 import me.topilov.springplayground.auth.passkey.exception.InvalidPasskeyCeremonyException
 import me.topilov.springplayground.auth.passkey.exception.PasskeyAuthenticationFailedException
@@ -39,9 +45,24 @@ class AuthExceptionHandler {
     fun handleInvalidPasskeyCeremony(exception: InvalidPasskeyCeremonyException): ErrorResponse =
         ErrorResponse(error = exception.message ?: "Bad request")
 
+    @ExceptionHandler(
+        InvalidTwoFactorCodeException::class,
+        TwoFactorSetupNotStartedException::class,
+        TwoFactorNotEnabledException::class,
+        TwoFactorLoginChallengeNotFoundException::class,
+    )
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleTwoFactorBadRequest(exception: RuntimeException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Bad request")
+
     @ExceptionHandler(DuplicatePasskeyCredentialException::class)
     @ResponseStatus(HttpStatus.CONFLICT)
     fun handleDuplicatePasskeyCredential(exception: DuplicatePasskeyCredentialException): SimpleErrorResponse =
+        SimpleErrorResponse(error = exception.message ?: "Conflict")
+
+    @ExceptionHandler(TwoFactorAlreadyEnabledException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleTwoFactorConflict(exception: TwoFactorAlreadyEnabledException): SimpleErrorResponse =
         SimpleErrorResponse(error = exception.message ?: "Conflict")
 
     @ExceptionHandler(PasskeyNotFoundException::class)
@@ -52,6 +73,11 @@ class AuthExceptionHandler {
     @ExceptionHandler(PasskeyAuthenticationFailedException::class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     fun handlePasskeyAuthenticationFailed(exception: PasskeyAuthenticationFailedException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Unauthorized")
+
+    @ExceptionHandler(TwoFactorAuthenticationFailedException::class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    fun handleTwoFactorAuthenticationFailed(exception: TwoFactorAuthenticationFailedException): ErrorResponse =
         ErrorResponse(error = exception.message ?: "Unauthorized")
 
     @ExceptionHandler(EmailNotVerifiedException::class)

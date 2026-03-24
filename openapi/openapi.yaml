@@ -242,11 +242,202 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/LoginResponse"
+        "202":
+          description: Password verification succeeded but the account requires a
+            second factor before the authenticated session is created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFactorLoginChallengeResponse"
         "401":
           description: Invalid credentials, rejected login request, or email is not
             yet verified.
           content:
             '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/auth/2fa/status:
+    get:
+      tags:
+      - Auth
+      summary: Get 2FA status
+      description: Returns the authenticated user's current TOTP two-factor state.
+      operationId: getTwoFactorStatus
+      responses:
+        "200":
+          description: Current TOTP state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFactorStatusResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/auth/2fa/setup/start:
+    post:
+      tags:
+      - Auth
+      summary: Start TOTP setup
+      description: Starts or restarts authenticated TOTP setup and returns the temporary setup secret.
+      operationId: startTwoFactorSetup
+      responses:
+        "200":
+          description: TOTP setup payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFactorSetupStartResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "409":
+          description: TOTP 2FA is already enabled for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/auth/2fa/setup/confirm:
+    post:
+      tags:
+      - Auth
+      summary: Confirm TOTP setup
+      description: Verifies a TOTP code against the pending setup secret and enables 2FA.
+      operationId: confirmTwoFactorSetup
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorSetupConfirmRequest"
+        required: true
+      responses:
+        "200":
+          description: TOTP was enabled and backup codes were issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TwoFactorSetupConfirmResponse"
+        "400":
+          description: Setup was not started or the confirmation code is invalid.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "409":
+          description: TOTP 2FA is already enabled for the current user.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/auth/2fa/backup-codes/regenerate:
+    post:
+      tags:
+      - Auth
+      summary: Regenerate backup codes
+      description: Replaces every active backup code for the authenticated user with a fresh set.
+      operationId: regenerateTwoFactorBackupCodes
+      responses:
+        "200":
+          description: Fresh backup codes.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegenerateBackupCodesResponse"
+        "400":
+          description: TOTP 2FA is not enabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/auth/2fa/disable:
+    post:
+      tags:
+      - Auth
+      summary: Disable TOTP 2FA
+      description: Disables TOTP 2FA for the authenticated user and removes stored backup codes.
+      operationId: disableTwoFactor
+      responses:
+        "200":
+          description: TOTP 2FA was disabled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisableTwoFactorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/auth/2fa/login/verify:
+    post:
+      tags:
+      - Auth
+      summary: Finish password login with TOTP
+      description: Verifies a TOTP code against a one-time login challenge and creates the normal authenticated session.
+      operationId: finishTwoFactorLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorLoginVerifyRequest"
+        required: true
+      responses:
+        "200":
+          description: Successful 2FA login. The response body and session cookie behavior match password login.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Login challenge is invalid, expired, or already consumed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Second-factor verification failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/auth/2fa/login/verify-backup-code:
+    post:
+      tags:
+      - Auth
+      summary: Finish password login with a backup code
+      description: Verifies a backup code against a one-time login challenge and creates the normal authenticated session.
+      operationId: finishTwoFactorBackupCodeLogin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TwoFactorBackupCodeLoginVerifyRequest"
+        required: true
+      responses:
+        "200":
+          description: Successful 2FA login. The response body and session cookie behavior match password login.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          description: Login challenge is invalid, expired, or already consumed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Backup code verification failed.
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/auth/passkeys/register/options:
@@ -978,6 +1169,133 @@ components:
       - role
       - userId
       - username
+    TwoFactorLoginChallengeResponse:
+      type: object
+      description: Password-login step-up response returned when a second factor is required.
+      properties:
+        requiresTwoFactor:
+          type: boolean
+          example: true
+        loginChallengeId:
+          type: string
+          example: opaque-login-challenge-id
+        methods:
+          type: array
+          items:
+            type: string
+          example:
+          - TOTP
+          - BACKUP_CODE
+        expiresAt:
+          type: string
+          format: date-time
+      required:
+      - expiresAt
+      - loginChallengeId
+      - methods
+      - requiresTwoFactor
+    TwoFactorStatusResponse:
+      type: object
+      description: Current TOTP two-factor authentication status for the authenticated user.
+      properties:
+        enabled:
+          type: boolean
+        pendingSetup:
+          type: boolean
+        backupCodesRemaining:
+          type: integer
+          format: int32
+        enabledAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - backupCodesRemaining
+      - enabled
+      - pendingSetup
+    TwoFactorSetupStartResponse:
+      type: object
+      description: TOTP setup payload returned before confirmation.
+      properties:
+        secret:
+          type: string
+          example: JBSWY3DPEHPK3PXP
+        otpauthUri:
+          type: string
+          example: otpauth://totp/Spring%20Playground:demo%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Spring%20Playground&algorithm=SHA1&digits=6&period=30
+      required:
+      - otpauthUri
+      - secret
+    TwoFactorSetupConfirmRequest:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "123456"
+          pattern: ^\d{6}$
+      required:
+      - code
+    TwoFactorSetupConfirmResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+          example: true
+        backupCodes:
+          type: array
+          items:
+            type: string
+          example:
+          - ABCD-EFGH-JKLM
+          - MNPR-STUV-WXYZ
+      required:
+      - backupCodes
+      - enabled
+    RegenerateBackupCodesResponse:
+      type: object
+      properties:
+        backupCodes:
+          type: array
+          items:
+            type: string
+          example:
+          - ABCD-EFGH-JKLM
+          - MNPR-STUV-WXYZ
+      required:
+      - backupCodes
+    DisableTwoFactorResponse:
+      type: object
+      properties:
+        disabled:
+          type: boolean
+          example: true
+      required:
+      - disabled
+    TwoFactorLoginVerifyRequest:
+      type: object
+      properties:
+        loginChallengeId:
+          type: string
+          example: opaque-login-challenge-id
+        code:
+          type: string
+          example: "123456"
+          pattern: ^\d{6}$
+      required:
+      - code
+      - loginChallengeId
+    TwoFactorBackupCodeLoginVerifyRequest:
+      type: object
+      properties:
+        loginChallengeId:
+          type: string
+          example: opaque-login-challenge-id
+        backupCode:
+          type: string
+          example: ABCD-EFGH-JKLM
+      required:
+      - backupCode
+      - loginChallengeId
     ForgotPasswordRequest:
       type: object
       properties:

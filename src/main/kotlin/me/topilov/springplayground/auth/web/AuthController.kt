@@ -22,9 +22,13 @@ import me.topilov.springplayground.auth.dto.ResetPasswordRequest
 import me.topilov.springplayground.auth.dto.ResetPasswordResponse
 import me.topilov.springplayground.auth.dto.VerifyEmailRequest
 import me.topilov.springplayground.auth.dto.VerifyEmailResponse
+import me.topilov.springplayground.auth.dto.TwoFactorLoginChallengeResponse
 import me.topilov.springplayground.auth.service.AuthService
+import me.topilov.springplayground.auth.service.SessionEstablishedLoginResult
+import me.topilov.springplayground.auth.service.TwoFactorRequiredLoginResult
 import me.topilov.springplayground.shared.dto.ApiErrorResponse
 import me.topilov.springplayground.shared.dto.SimpleErrorResponse
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.PostMapping
@@ -239,6 +243,16 @@ class AuthController(
                 ],
             ),
             ApiResponse(
+                responseCode = "202",
+                description = "Password verification succeeded but the account requires a second factor before the authenticated session is created.",
+                content = [
+                    Content(
+                        mediaType = "application/json",
+                        schema = Schema(implementation = TwoFactorLoginChallengeResponse::class),
+                    ),
+                ],
+            ),
+            ApiResponse(
                 responseCode = "401",
                 description = "Invalid credentials, rejected login request, or email is not yet verified.",
                 content = [Content()],
@@ -250,7 +264,10 @@ class AuthController(
         @Valid @SpringRequestBody request: LoginRequest,
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
-    ): LoginResponse = authService.login(request, servletRequest, servletResponse)
+    ): ResponseEntity<Any> = when (val result = authService.login(request, servletRequest, servletResponse)) {
+        is SessionEstablishedLoginResult -> ResponseEntity.ok(result.response)
+        is TwoFactorRequiredLoginResult -> ResponseEntity.status(HttpStatus.ACCEPTED).body(result.response)
+    }
 
     @Operation(
         summary = "Logout",
