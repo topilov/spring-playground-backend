@@ -54,6 +54,7 @@ class SecurityConfig {
                     "/api/auth/resend-verification-email",
                     "/api/auth/forgot-password",
                     "/api/auth/reset-password",
+                    "/api/profile/me/email/verify",
                 ).permitAll()
                     .anyRequest().authenticated()
             }

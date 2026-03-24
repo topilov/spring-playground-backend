@@ -21,6 +21,7 @@ import org.springframework.web.context.WebApplicationContext
 @SpringBootTest
 @Sql(
     statements = [
+        "UPDATE auth_user SET username = 'demo', email = 'demo@example.com', email_verified = TRUE, enabled = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
         "UPDATE user_profile SET display_name = 'Demo User', bio = 'Session-backed example profile', updated_at = CURRENT_TIMESTAMP WHERE user_id = 1",
     ],
     executionPhase = Sql.ExecutionPhase.BEFORE_TEST_METHOD,

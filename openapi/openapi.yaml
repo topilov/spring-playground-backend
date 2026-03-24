@@ -64,6 +64,148 @@ paths:
           description: Authenticated user has no linked profile.
       security:
       - sessionCookie: []
+  /api/profile/me/username:
+    post:
+      tags:
+      - Profile
+      summary: Update current username
+      description: Updates the username of the current authenticated user.
+      operationId: updateUsername
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUsernameRequest"
+        required: true
+      responses:
+        "200":
+          description: Updated profile.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "400":
+          description: Validation failed for the submitted username payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Authenticated user has no linked profile.
+        "409":
+          description: Username is already in use.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/profile/me/password:
+    post:
+      tags:
+      - Profile
+      summary: Change current password
+      description: Changes the password of the current authenticated user after verifying the current password.
+      operationId: changePassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+        required: true
+      responses:
+        "200":
+          description: Password changed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangePasswordResponse"
+        "400":
+          description: Validation failed or the current password is incorrect.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Authenticated user has no linked profile.
+      security:
+      - sessionCookie: []
+  /api/profile/me/email/change-request:
+    post:
+      tags:
+      - Profile
+      summary: Request current email change
+      description: Starts a new email change flow for the current authenticated user and sends a verification link to the new email address.
+      operationId: requestEmailChange
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestEmailChangeRequest"
+        required: true
+      responses:
+        "200":
+          description: Email change request accepted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestEmailChangeResponse"
+        "400":
+          description: Validation failed or the new email matches the current email.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Authenticated user has no linked profile.
+        "409":
+          description: Email is already in use.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/profile/me/email/verify:
+    post:
+      tags:
+      - Profile
+      summary: Verify current email change
+      description: Confirms an email change using a one-time token that was sent to the new email address.
+      operationId: verifyEmailChange
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailChangeRequest"
+        required: true
+      responses:
+        "200":
+          description: Email change completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfileResponse"
+        "400":
+          description: Validation failed or the email change token is invalid or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Authenticated user has no linked profile.
+        "409":
+          description: Email is already in use.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleErrorResponse"
   /api/auth/reset-password:
     post:
       tags:
@@ -731,6 +873,60 @@ components:
           minLength: 0
       required:
       - displayName
+    UpdateUsernameRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          maxLength: 64
+          minLength: 1
+      required:
+      - username
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+        newPassword:
+          type: string
+          maxLength: 100
+          minLength: 8
+      required:
+      - currentPassword
+      - newPassword
+    ChangePasswordResponse:
+      type: object
+      properties:
+        changed:
+          type: boolean
+      required:
+      - changed
+    RequestEmailChangeRequest:
+      type: object
+      properties:
+        newEmail:
+          type: string
+          format: email
+          maxLength: 255
+          minLength: 1
+      required:
+      - newEmail
+    RequestEmailChangeResponse:
+      type: object
+      properties:
+        accepted:
+          type: boolean
+      required:
+      - accepted
+    VerifyEmailChangeRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 1
+      required:
+      - token
     ProfileResponse:
       type: object
       description: Current authenticated user's profile.
