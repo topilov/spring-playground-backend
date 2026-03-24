@@ -1,7 +1,9 @@
 package me.topilov.springplayground.abuse.captcha
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonProperty
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class TurnstileSiteverifyResponse(
     val success: Boolean = false,
     val hostname: String? = null,
