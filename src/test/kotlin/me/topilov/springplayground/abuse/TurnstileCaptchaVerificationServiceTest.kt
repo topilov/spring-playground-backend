@@ -8,10 +8,15 @@ import me.topilov.springplayground.abuse.config.TurnstileProperties
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import java.net.InetSocketAddress
+import java.net.ServerSocket
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 
+@ExtendWith(OutputCaptureExtension::class)
 class TurnstileCaptchaVerificationServiceTest {
     private var server: HttpServer? = null
 
@@ -55,6 +60,29 @@ class TurnstileCaptchaVerificationServiceTest {
         val result = service.verify(AbuseProtectionFlow.LOGIN, "valid-token", "127.0.0.1")
 
         assertThat(result.success).isTrue()
+    }
+
+    @Test
+    fun `network failures log root cause details and return internal error`(output: CapturedOutput) {
+        val unusedPort = ServerSocket(0).use { it.localPort }
+        val service = TurnstileCaptchaVerificationService(
+            TurnstileProperties(
+                enabled = true,
+                secretKey = "test-secret",
+                siteverifyUrl = "http://127.0.0.1:$unusedPort/siteverify",
+                timeout = Duration.ofMillis(200),
+            ),
+        )
+
+        val result = service.verify(AbuseProtectionFlow.LOGIN, "valid-token", "203.0.113.10")
+
+        assertThat(result.success).isFalse()
+        assertThat(result.errorCodes).containsExactly("internal-error")
+        assertThat(output.out).contains("Turnstile verification request failed")
+        assertThat(output.out).contains("flow=LOGIN")
+        assertThat(output.out).contains("remoteIp=203.0.113.10")
+        assertThat(output.out).contains("siteverifyUrl=http://127.0.0.1:$unusedPort/siteverify")
+        assertThat(output.out).contains("exceptionClass=java.net.ConnectException")
     }
 
     private class JsonHandler(private val body: String) : HttpHandler {

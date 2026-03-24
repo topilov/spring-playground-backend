@@ -48,15 +48,55 @@ class TurnstileCaptchaVerificationService(
             val expectedHostname = turnstileProperties.expectedHostname?.takeIf { it.isNotBlank() }
 
             when {
-                !payload.success -> CaptchaVerificationResult(false, payload.errorCodes)
+                !payload.success -> {
+                    log.warn(
+                        "Turnstile rejected captcha flow={} remoteIp={} siteverifyUrl={} statusCode={} errorCodes={} action={} hostname={}",
+                        flow,
+                        remoteIp ?: "unknown",
+                        turnstileProperties.siteverifyUrl,
+                        response.statusCode(),
+                        payload.errorCodes,
+                        payload.action ?: "none",
+                        payload.hostname ?: "none",
+                    )
+                    CaptchaVerificationResult(false, payload.errorCodes)
+                }
                 expectedAction != null && payload.action != null && payload.action != expectedAction ->
-                    CaptchaVerificationResult(false, listOf("invalid-action"))
+                    CaptchaVerificationResult(false, listOf("invalid-action")).also {
+                        log.warn(
+                            "Turnstile returned unexpected action flow={} remoteIp={} siteverifyUrl={} expectedAction={} actualAction={} hostname={}",
+                            flow,
+                            remoteIp ?: "unknown",
+                            turnstileProperties.siteverifyUrl,
+                            expectedAction,
+                            payload.action,
+                            payload.hostname ?: "none",
+                        )
+                    }
                 expectedHostname != null && payload.hostname != null && payload.hostname != expectedHostname ->
-                    CaptchaVerificationResult(false, listOf("invalid-hostname"))
+                    CaptchaVerificationResult(false, listOf("invalid-hostname")).also {
+                        log.warn(
+                            "Turnstile returned unexpected hostname flow={} remoteIp={} siteverifyUrl={} expectedHostname={} actualHostname={} action={}",
+                            flow,
+                            remoteIp ?: "unknown",
+                            turnstileProperties.siteverifyUrl,
+                            expectedHostname,
+                            payload.hostname,
+                            payload.action ?: "none",
+                        )
+                    }
                 else -> CaptchaVerificationResult(true)
             }
         } catch (exception: Exception) {
-            log.warn("Turnstile validation failed for flow {}", flow, exception)
+            log.warn(
+                "Turnstile verification request failed flow={} remoteIp={} siteverifyUrl={} exceptionClass={} exceptionMessage={}",
+                flow,
+                remoteIp ?: "unknown",
+                turnstileProperties.siteverifyUrl,
+                exception.javaClass.name,
+                exception.message ?: "none",
+                exception,
+            )
             CaptchaVerificationResult(success = false, errorCodes = listOf("internal-error"))
         }
     }
