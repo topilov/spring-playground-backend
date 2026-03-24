@@ -110,7 +110,7 @@ class AuthService(
         }
 
         try {
-            sendVerificationEmail(registration)
+            sendRegistrationVerificationEmail(registration)
         } catch (exception: RuntimeException) {
             log.warn("Failed to send verification email to {}", registration.email, exception)
         }
@@ -154,7 +154,7 @@ class AuthService(
 
         if (dispatch != null) {
             try {
-                sendVerificationEmail(dispatch)
+                sendRegistrationVerificationEmail(dispatch)
             } catch (exception: RuntimeException) {
                 log.warn("Failed to resend verification email to {}", dispatch.email, exception)
             }
@@ -255,9 +255,9 @@ class AuthService(
         return "$baseUrl$path?token=${URLEncoder.encode(rawToken, StandardCharsets.UTF_8)}"
     }
 
-    private fun sendVerificationEmail(registration: RegisteredUser) {
+    private fun sendRegistrationVerificationEmail(registration: RegisteredUser) {
         val rawToken = emailVerificationTokenStore.createToken()
-        emailService.sendVerificationEmail(
+        emailService.sendRegistrationVerificationEmail(
             recipientEmail = registration.email,
             username = registration.username,
             verificationUrl = buildVerificationUrl(rawToken),

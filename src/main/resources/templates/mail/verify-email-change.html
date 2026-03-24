@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+<h1 th:text="|Confirm your new ${appName} email|">Confirm your new email</h1>
+<p th:text="|Hi ${username}, confirm your new email address to finish updating your account.|">Hi</p>
+<p>
+    <a
+        th:href="${verificationUrl}"
+        style="display:inline-block;padding:12px 20px;background:#0f766e;color:#ffffff;text-decoration:none;border-radius:8px;"
+    >
+        Confirm new email
+    </a>
+</p>
+<p th:text="|If the button does not work, open this link: ${verificationUrl}|">Verification link</p>
+<p th:text="|This link expires in ${expiresInMinutes} minutes.|">Expiry</p>
+</body>
+</html>

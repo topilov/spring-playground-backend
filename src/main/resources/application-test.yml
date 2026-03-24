@@ -40,6 +40,7 @@ app:
     app-name: Spring Playground Test
     public-base-url: http://localhost:3000
     verify-email-path: /verify-email
+    verify-email-change-path: /verify-email-change
     email-verification-ttl: PT24H
     reset-password-path: /reset-password
     password-reset-ttl: PT30M

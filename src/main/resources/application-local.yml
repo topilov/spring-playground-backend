@@ -25,6 +25,7 @@ app:
     from: no-reply@topilov.dev
     app-name: Spring Playground
     verify-email-path: /verify-email
+    verify-email-change-path: /verify-email-change
     email-verification-ttl: PT5M
     reset-password-path: /reset-password
     password-reset-ttl: PT5M

@@ -10,6 +10,7 @@ data class MailProperties(
     val appName: String = "Spring Playground",
     val publicBaseUrl: String = "",
     val verifyEmailPath: String = "/verify-email",
+    val verifyEmailChangePath: String = "/verify-email-change",
     val emailVerificationTtl: Duration = Duration.ofHours(24),
     val resetPasswordPath: String = "/reset-password",
     val passwordResetTtl: Duration = Duration.ofMinutes(30),

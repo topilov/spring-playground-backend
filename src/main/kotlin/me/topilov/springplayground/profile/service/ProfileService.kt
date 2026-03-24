@@ -107,7 +107,7 @@ class ProfileService(
         pendingEmailChangeTokenStore.invalidateAllTokensForUser(userId)
         val rawToken = pendingEmailChangeTokenStore.createToken()
         pendingEmailChangeTokenStore.activateToken(userId, normalizedEmail, rawToken)
-        emailService.sendVerificationEmail(
+        emailService.sendEmailChangeVerificationEmail(
             recipientEmail = normalizedEmail,
             username = user.username,
             verificationUrl = buildEmailChangeVerificationUrl(rawToken),
@@ -142,10 +142,10 @@ class ProfileService(
 
     private fun buildEmailChangeVerificationUrl(rawToken: String): String {
         val baseUrl = mailProperties.publicBaseUrl.trimEnd('/')
-        val path = if (mailProperties.verifyEmailPath.startsWith("/")) {
-            mailProperties.verifyEmailPath
+        val path = if (mailProperties.verifyEmailChangePath.startsWith("/")) {
+            mailProperties.verifyEmailChangePath
         } else {
-            "/${mailProperties.verifyEmailPath}"
+            "/${mailProperties.verifyEmailChangePath}"
         }
 
         return "$baseUrl$path?token=${URLEncoder.encode(rawToken, StandardCharsets.UTF_8)}"
