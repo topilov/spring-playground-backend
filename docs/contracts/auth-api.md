@@ -29,3 +29,7 @@ That canonical document includes the current password, email-verification, passw
 - `POST /api/auth/logout`
 
 Use `auth.md` as the source of truth for request and response shapes, auth requirements, notes about `JSESSIONID`, and passkey/WebAuthn payload handling.
+
+Current protection note:
+
+- Sensitive public auth requests now include a required `captchaToken` contract field and may return abuse-protection `429 Too Many Requests` responses with `retryAfterSeconds`.

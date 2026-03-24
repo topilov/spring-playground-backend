@@ -3,6 +3,8 @@ package me.topilov.springplayground.auth.passkey.service
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
+import me.topilov.springplayground.abuse.AbuseProtectionFlow
+import me.topilov.springplayground.abuse.AbuseProtectionService
 import me.topilov.springplayground.auth.dto.LoginResponse
 import me.topilov.springplayground.auth.passkey.PasskeyOptionsMapper
 import me.topilov.springplayground.auth.passkey.ceremony.AuthenticationPasskeyCeremony
@@ -26,10 +28,22 @@ class PasskeyAuthenticationService(
     private val passkeyWebAuthnService: PasskeyWebAuthnService,
     private val sessionLoginService: SessionLoginService,
     private val passkeyOptionsMapper: PasskeyOptionsMapper,
+    private val abuseProtectionService: AbuseProtectionService,
 ) {
     private val objectMapper = jacksonObjectMapper()
 
-    fun startAuthentication(@Suppress("UNUSED_PARAMETER") request: PasskeyLoginOptionsRequest): PasskeyLoginOptionsResponse {
+    fun startAuthentication(
+        request: PasskeyLoginOptionsRequest,
+        servletRequest: HttpServletRequest,
+    ): PasskeyLoginOptionsResponse {
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.PASSKEY_LOGIN_OPTIONS,
+            abuseProtectionService.buildContext(
+                captchaToken = request.captchaToken,
+                request = servletRequest,
+                identifier = request.usernameOrEmail?.trim()?.lowercase(),
+            ),
+        )
         val started = passkeyWebAuthnService.beginAuthentication()
         val ceremonyId = passkeyCeremonyStore.createCeremonyId()
         passkeyCeremonyStore.saveAuthentication(
@@ -51,6 +65,10 @@ class PasskeyAuthenticationService(
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
     ): LoginResponse {
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.PASSKEY_LOGIN_VERIFY,
+            abuseProtectionService.buildContext(request.captchaToken, servletRequest, request.ceremonyId),
+        )
         val ceremony = passkeyCeremonyStore.findAuthentication(request.ceremonyId)
             ?: throw InvalidPasskeyCeremonyException()
         val verified = passkeyWebAuthnService.finishAuthentication(

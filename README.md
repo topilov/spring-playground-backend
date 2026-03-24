@@ -116,7 +116,7 @@ When the account exists, the backend creates a one-time reset token in Redis and
 ```bash
 curl \
   -H 'Content-Type: application/json' \
-  -d '{"token":"token-from-email","newPassword":"new-very-secret-password"}' \
+  -d '{"token":"token-from-email","newPassword":"new-very-secret-password","captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/auth/reset-password
 ```
 
@@ -134,6 +134,7 @@ Passkey ceremonies are production-shaped:
 - durable credentials are stored in PostgreSQL
 - short-lived registration and login ceremony state is stored in Redis
 - successful passkey login returns the same response body as password login and creates the normal `JSESSIONID` session
+- unauthenticated passkey login is protected by backend-side Turnstile validation and centralized rate limiting
 
 The server-side WebAuthn implementation uses Yubico `java-webauthn-server`. It was chosen because it is a mature Java WebAuthn relying-party library with first-class support for registration and assertion ceremonies, credential repositories, and discoverable passkey login.
 
@@ -159,6 +160,7 @@ After TOTP is enabled, password login changes shape:
 - `POST /api/auth/login` returns `202 Accepted` with `loginChallengeId`
 - `POST /api/auth/2fa/login/verify` completes login with a TOTP code
 - `POST /api/auth/2fa/login/verify-backup-code` completes login with a backup code
+- public login, recovery, resend, passkey-login, and public email-change verification endpoints are protected by centralized abuse controls backed by Redis
 
 ## Mail configuration
 
@@ -168,6 +170,9 @@ Available properties:
 
 - `DB_URL`
 - `DB_USERNAME`
+- `APP_TURNSTILE_ENABLED`
+- `APP_TURNSTILE_SECRET_KEY`
+- `APP_TURNSTILE_EXPECTED_HOSTNAME`
 - `DB_PASSWORD`
 - `REDIS_URL`
 - `APP_CORS_ALLOWED_ORIGINS`

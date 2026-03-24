@@ -3,6 +3,8 @@ package me.topilov.springplayground.auth.service
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
+import me.topilov.springplayground.abuse.AbuseProtectionFlow
+import me.topilov.springplayground.abuse.AbuseProtectionService
 import me.topilov.springplayground.auth.domain.AuthUser
 import me.topilov.springplayground.auth.dto.ForgotPasswordRequest
 import me.topilov.springplayground.auth.dto.ForgotPasswordResponse
@@ -31,6 +33,7 @@ import me.topilov.springplayground.profile.domain.UserProfile
 import me.topilov.springplayground.profile.repository.UserProfileRepository
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.security.core.AuthenticationException
 import org.springframework.security.authentication.AuthenticationManager
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
@@ -57,12 +60,20 @@ class AuthService(
     private val emailVerificationTokenStore: EmailVerificationTokenStore,
     private val emailService: EmailService,
     private val mailProperties: MailProperties,
+    private val abuseProtectionService: AbuseProtectionService,
     transactionManager: PlatformTransactionManager,
 ) {
     private val logoutHandler = SecurityContextLogoutHandler()
     private val transactionTemplate = TransactionTemplate(transactionManager)
 
-    fun register(@Valid request: RegisterRequest): RegisterResponse {
+    fun register(
+        @Valid request: RegisterRequest,
+        servletRequest: HttpServletRequest,
+    ): RegisterResponse {
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.REGISTER,
+            abuseProtectionService.buildContext(request.captchaToken, servletRequest),
+        )
         val username = request.username.trim()
         val email = request.email.trim().lowercase()
 
@@ -136,10 +147,19 @@ class AuthService(
         return VerifyEmailResponse()
     }
 
-    fun resendVerificationEmail(@Valid request: ResendVerificationEmailRequest): ResendVerificationEmailResponse {
+    fun resendVerificationEmail(
+        @Valid request: ResendVerificationEmailRequest,
+        servletRequest: HttpServletRequest,
+    ): ResendVerificationEmailResponse {
+        val normalizedEmail = request.email.trim().lowercase()
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.RESEND_VERIFICATION_EMAIL,
+            abuseProtectionService.buildContext(request.captchaToken, servletRequest, normalizedEmail),
+        )
+        abuseProtectionService.enforceCooldown(AbuseProtectionFlow.RESEND_VERIFICATION_EMAIL, normalizedEmail)
+
         val dispatch = transactionTemplate.execute<RegisteredUser?> {
-            val email = request.email.trim().lowercase()
-            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null)
+            val user = authUserRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null)
                 ?: return@execute null
             if (user.emailVerified) {
                 return@execute null
@@ -163,10 +183,19 @@ class AuthService(
         return ResendVerificationEmailResponse()
     }
 
-    fun forgotPassword(@Valid request: ForgotPasswordRequest): ForgotPasswordResponse {
+    fun forgotPassword(
+        @Valid request: ForgotPasswordRequest,
+        servletRequest: HttpServletRequest,
+    ): ForgotPasswordResponse {
+        val normalizedEmail = request.email.trim().lowercase()
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.FORGOT_PASSWORD,
+            abuseProtectionService.buildContext(request.captchaToken, servletRequest, normalizedEmail),
+        )
+        abuseProtectionService.enforceCooldown(AbuseProtectionFlow.FORGOT_PASSWORD, normalizedEmail)
+
         val dispatch = transactionTemplate.execute<PasswordResetDispatch?> {
-            val email = request.email.trim().lowercase()
-            val user = authUserRepository.findByEmailIgnoreCase(email).orElse(null)
+            val user = authUserRepository.findByEmailIgnoreCase(normalizedEmail).orElse(null)
                 ?: return@execute null
             val userId = requireNotNull(user.id) { "Persisted user id is missing" }
 
@@ -194,7 +223,14 @@ class AuthService(
         return ForgotPasswordResponse()
     }
 
-    fun resetPassword(@Valid request: ResetPasswordRequest): ResetPasswordResponse {
+    fun resetPassword(
+        @Valid request: ResetPasswordRequest,
+        servletRequest: HttpServletRequest,
+    ): ResetPasswordResponse {
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.RESET_PASSWORD,
+            abuseProtectionService.buildContext(request.captchaToken, servletRequest, request.token.trim()),
+        )
         val userId = passwordResetTokenStore.findUserId(request.token)
             ?: throw InvalidPasswordResetTokenException()
 
@@ -215,10 +251,29 @@ class AuthService(
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
     ): PasswordLoginResult {
-        val authentication = authenticationManager.authenticate(
-            UsernamePasswordAuthenticationToken.unauthenticated(request.usernameOrEmail, request.password),
+        val identifier = request.usernameOrEmail.trim().lowercase()
+        abuseProtectionService.checkFailureThrottle(AbuseProtectionFlow.LOGIN, servletRequest, identifier)
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.LOGIN,
+            abuseProtectionService.buildContext(request.captchaToken, servletRequest, identifier),
         )
-        val principal = sessionLoginService.requireLoginAllowed(authentication)
+
+        val authentication = try {
+            authenticationManager.authenticate(
+                UsernamePasswordAuthenticationToken.unauthenticated(request.usernameOrEmail, request.password),
+            )
+        } catch (exception: AuthenticationException) {
+            abuseProtectionService.recordFailure(AbuseProtectionFlow.LOGIN, servletRequest, identifier)
+            throw exception
+        }
+
+        val principal = try {
+            sessionLoginService.requireLoginAllowed(authentication)
+        } catch (exception: EmailNotVerifiedException) {
+            abuseProtectionService.recordFailure(AbuseProtectionFlow.LOGIN, servletRequest, identifier)
+            throw exception
+        }
+        abuseProtectionService.clearFailures(AbuseProtectionFlow.LOGIN, servletRequest, identifier)
         if (twoFactorLoginService.isEnabledForUser(principal.id)) {
             return TwoFactorRequiredLoginResult(twoFactorLoginService.createLoginChallenge(principal.id))
         }

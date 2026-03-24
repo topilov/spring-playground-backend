@@ -375,7 +375,8 @@ No authenticated session is required. The one-time token is sufficient.
 
 ```json
 {
-  "token": "one-time-email-change-token"
+  "token": "one-time-email-change-token",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -383,7 +384,8 @@ Current request shape:
 
 ```json
 {
-  "token": "string, required"
+  "token": "string, required",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -408,6 +410,7 @@ Current request shape:
 **Typical Error Statuses**
 
 - `400 Bad Request` when the token is invalid, expired, already used, or request validation fails.
+- `429 Too Many Requests` when abuse protection throttles the endpoint.
 - `404 Not Found` if the linked profile no longer exists.
 - `409 Conflict` when the pending new email was claimed by another account before verification.
 
@@ -425,7 +428,7 @@ Observed error body example for an invalid or already-used token:
 curl -i \
   -H 'Content-Type: application/json' \
   -X POST \
-  -d '{"token":"one-time-email-change-token"}' \
+  -d '{"token":"one-time-email-change-token","captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/profile/me/email/verify
 ```
 
@@ -435,3 +438,4 @@ curl -i \
 - The token is one-time use.
 - If a newer email-change request was started for the same user, every older token becomes invalid.
 - After successful verification, login by the old email stops working and login by the new email starts working immediately.
+- Public email-change verification now participates in the same centralized abuse-protection layer as the public auth flows.

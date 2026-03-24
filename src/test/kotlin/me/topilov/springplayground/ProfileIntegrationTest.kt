@@ -1,9 +1,11 @@
 package me.topilov.springplayground
 
+import me.topilov.springplayground.abuse.TestAbuseProtectionConfiguration
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.test.context.jdbc.Sql
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -19,6 +21,7 @@ import org.springframework.mock.web.MockHttpSession
 import org.springframework.web.context.WebApplicationContext
 
 @SpringBootTest
+@Import(TestAbuseProtectionConfiguration::class)
 @Sql(
     statements = [
         "UPDATE auth_user SET username = 'demo', email = 'demo@example.com', email_verified = TRUE, enabled = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
@@ -70,7 +73,7 @@ class ProfileIntegrationTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$usernameOrEmail","password":"demo-password"}"""),
+                .content("""{"usernameOrEmail":"$usernameOrEmail","password":"demo-password","captchaToken":"test-captcha-token"}"""),
         )
             .andExpect(status().isOk)
             .andReturn()

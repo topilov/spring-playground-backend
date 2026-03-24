@@ -84,7 +84,8 @@ class AuthController(
     @PostMapping("/register")
     fun register(
         @Valid @SpringRequestBody request: RegisterRequest,
-    ): RegisterResponse = authService.register(request)
+        servletRequest: HttpServletRequest,
+    ): RegisterResponse = authService.register(request, servletRequest)
 
     @Operation(
         summary = "Verify email",
@@ -133,7 +134,8 @@ class AuthController(
     @PostMapping("/resend-verification-email")
     fun resendVerificationEmail(
         @Valid @SpringRequestBody request: ResendVerificationEmailRequest,
-    ): ResendVerificationEmailResponse = authService.resendVerificationEmail(request)
+        servletRequest: HttpServletRequest,
+    ): ResendVerificationEmailResponse = authService.resendVerificationEmail(request, servletRequest)
 
     @Operation(
         summary = "Forgot password",
@@ -167,7 +169,8 @@ class AuthController(
     @PostMapping("/forgot-password")
     fun forgotPassword(
         @Valid @SpringRequestBody request: ForgotPasswordRequest,
-    ): ForgotPasswordResponse = authService.forgotPassword(request)
+        servletRequest: HttpServletRequest,
+    ): ForgotPasswordResponse = authService.forgotPassword(request, servletRequest)
 
     @Operation(
         summary = "Reset password",
@@ -201,7 +204,8 @@ class AuthController(
     @PostMapping("/reset-password")
     fun resetPassword(
         @Valid @SpringRequestBody request: ResetPasswordRequest,
-    ): ResetPasswordResponse = authService.resetPassword(request)
+        servletRequest: HttpServletRequest,
+    ): ResetPasswordResponse = authService.resetPassword(request, servletRequest)
 
     @Operation(
         summary = "Login",

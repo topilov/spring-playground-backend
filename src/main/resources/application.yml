@@ -41,8 +41,58 @@ server:
         same-site: ${SESSION_COOKIE_SAME_SITE:lax}
 
 app:
+  turnstile:
+    enabled: ${APP_TURNSTILE_ENABLED:true}
+    secret-key: ${APP_TURNSTILE_SECRET_KEY:}
+    siteverify-url: ${APP_TURNSTILE_SITEVERIFY_URL:https://challenges.cloudflare.com/turnstile/v0/siteverify}
+    expected-hostname: ${APP_TURNSTILE_EXPECTED_HOSTNAME:}
+    timeout: ${APP_TURNSTILE_TIMEOUT:PT3S}
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:https://auth.topilov.dev}
+  abuse:
+    flows:
+      register:
+        captcha-required: true
+        request-limit: 5
+        request-window: PT5M
+      login:
+        captcha-required: true
+        request-limit: 20
+        request-window: PT5M
+        failure-limit: 5
+        failure-window: PT10M
+      forgot-password:
+        captcha-required: true
+        request-limit: 10
+        request-window: PT10M
+        cooldown: PT2M
+      resend-verification-email:
+        captcha-required: true
+        request-limit: 10
+        request-window: PT10M
+        cooldown: PT2M
+      reset-password:
+        captcha-required: true
+        request-limit: 10
+        request-window: PT10M
+      two-factor-login:
+        captcha-required: true
+        request-limit: 20
+        request-window: PT5M
+        failure-limit: 5
+        failure-window: PT10M
+      passkey-login-options:
+        captcha-required: true
+        request-limit: 15
+        request-window: PT5M
+      passkey-login-verify:
+        captcha-required: true
+        request-limit: 20
+        request-window: PT5M
+      verify-email-change:
+        captcha-required: true
+        request-limit: 10
+        request-window: PT10M
   passkeys:
     rp-id: ${APP_PASSKEY_RP_ID:auth.topilov.dev}
     rp-name: ${APP_PASSKEY_RP_NAME:Spring Playground}

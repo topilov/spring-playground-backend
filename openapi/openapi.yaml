@@ -198,6 +198,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Captcha validation failed or abuse protection throttled the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Authenticated user has no linked profile.
         "409":
@@ -227,7 +233,13 @@ paths:
               schema:
                 oneOf:
                 - $ref: "#/components/schemas/ApiErrorResponse"
-                - $ref: "#/components/schemas/SimpleErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Password reset completed.
           content:
@@ -256,11 +268,19 @@ paths:
               schema:
                 $ref: "#/components/schemas/SimpleErrorResponse"
         "400":
-          description: Validation failed for the submitted registration payload.
+          description: Validation failed for the submitted registration payload or captcha validation failed.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                oneOf:
+                - $ref: "#/components/schemas/ApiErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Successful registration.
           content:
@@ -323,7 +343,13 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "400":
-          description: Bad Request
+          description: Validation failed or captcha validation failed.
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled the request or an email cooldown is active.
           content:
             '*/*':
               schema:
@@ -362,11 +388,13 @@ paths:
         required: true
       responses:
         "400":
-          description: Validation failed for the submitted login payload.
+          description: Validation failed for the submitted login payload or captcha validation failed.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                oneOf:
+                - $ref: "#/components/schemas/ApiErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Successful login. The response body describes the authenticated
             user and the response sets JSESSIONID.
@@ -396,6 +424,12 @@ paths:
             yet verified.
           content:
             '*/*':
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled login attempts.
+          content:
+            application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/auth/2fa/status:
@@ -550,6 +584,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled two-factor verification attempts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/auth/2fa/login/verify-backup-code:
     post:
       tags:
@@ -578,6 +618,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Backup code verification failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled two-factor verification attempts.
           content:
             application/json:
               schema:
@@ -751,6 +797,18 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PasskeyLoginOptionsResponse"
+        "400":
+          description: Captcha validation failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/auth/passkey-login/verify:
     post:
       tags:
@@ -792,6 +850,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled the request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/auth/forgot-password:
     post:
       tags:
@@ -809,11 +873,19 @@ paths:
         required: true
       responses:
         "400":
-          description: Validation failed for the submitted email payload.
+          description: Validation failed for the submitted email payload or captcha validation failed.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ApiErrorResponse"
+                oneOf:
+                - $ref: "#/components/schemas/ApiErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled the request or an email cooldown is active.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "200":
           description: Request accepted.
           content:
@@ -853,6 +925,9 @@ components:
           type: string
         code:
           type: string
+        retryAfterSeconds:
+          type: integer
+          format: int64
       required:
       - error
     UpdateProfileRequest:
@@ -925,7 +1000,11 @@ components:
         token:
           type: string
           minLength: 1
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
+      - captchaToken
       - token
     ProfileResponse:
       type: object
@@ -994,7 +1073,11 @@ components:
           type: string
           maxLength: 100
           minLength: 8
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
+      - captchaToken
       - newPassword
       - token
     ResetPasswordResponse:
@@ -1020,7 +1103,11 @@ components:
           type: string
           maxLength: 100
           minLength: 8
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
+      - captchaToken
       - email
       - password
       - username
@@ -1200,7 +1287,11 @@ components:
           format: email
           maxLength: 255
           minLength: 1
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
+      - captchaToken
       - email
     ResendVerificationEmailResponse:
       type: object
@@ -1296,7 +1387,11 @@ components:
         usernameOrEmail:
           type: string
           description: Reserved for future login hints.
-      required: []
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
+      required:
+      - captchaToken
     PasskeyLoginOptionsResponse:
       type: object
       description: Public key credential request options for passkey login.
@@ -1319,7 +1414,11 @@ components:
           minLength: 1
         credential:
           $ref: "#/components/schemas/FreeFormWebAuthnObject"
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
+      - captchaToken
       - ceremonyId
       - credential
     LoginRequest:
@@ -1336,7 +1435,12 @@ components:
           description: Plain-text password submitted to the backend for authentication.
           example: demo-password
           minLength: 1
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token generated by the client for this request.
+          example: 0.xxxxxxxxxxxxxxxxxxxxx
       required:
+      - captchaToken
       - password
       - usernameOrEmail
     LoginResponse:
@@ -1477,7 +1581,11 @@ components:
           type: string
           example: "123456"
           pattern: ^\d{6}$
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
+      - captchaToken
       - code
       - loginChallengeId
     TwoFactorBackupCodeLoginVerifyRequest:
@@ -1489,8 +1597,12 @@ components:
         backupCode:
           type: string
           example: ABCD-EFGH-JKLM
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
       - backupCode
+      - captchaToken
       - loginChallengeId
     ForgotPasswordRequest:
       type: object
@@ -1500,7 +1612,11 @@ components:
           format: email
           maxLength: 255
           minLength: 0
+        captchaToken:
+          type: string
+          description: Cloudflare Turnstile token for abuse protection.
       required:
+      - captchaToken
       - email
     ForgotPasswordResponse:
       type: object

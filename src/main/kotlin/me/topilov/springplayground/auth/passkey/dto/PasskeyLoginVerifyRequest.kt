@@ -11,4 +11,5 @@ data class PasskeyLoginVerifyRequest(
     val ceremonyId: String,
     @field:NotNull
     val credential: Map<String, Any?>,
+    val captchaToken: String? = null,
 )

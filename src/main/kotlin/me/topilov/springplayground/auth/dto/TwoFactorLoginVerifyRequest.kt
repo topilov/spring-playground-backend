@@ -11,4 +11,5 @@ data class TwoFactorLoginVerifyRequest(
     @field:NotBlank
     @field:Pattern(regexp = "^\\d{6}$")
     val code: String,
+    val captchaToken: String? = null,
 )

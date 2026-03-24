@@ -9,4 +9,5 @@ data class TwoFactorBackupCodeLoginVerifyRequest(
     val loginChallengeId: String,
     @field:NotBlank
     val backupCode: String,
+    val captchaToken: String? = null,
 )

@@ -22,8 +22,57 @@ server:
         same-site: lax
 
 app:
+  turnstile:
+    enabled: true
+    secret-key: test-secret
+    expected-hostname:
+    timeout: PT1S
   cors:
     allowed-origins: http://localhost:3000
+  abuse:
+    flows:
+      register:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT5M
+      login:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT5M
+        failure-limit: 5
+        failure-window: PT10M
+      forgot-password:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT10M
+        cooldown: PT10M
+      resend-verification-email:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT10M
+        cooldown: PT10M
+      reset-password:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT10M
+      two-factor-login:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT5M
+        failure-limit: 5
+        failure-window: PT10M
+      passkey-login-options:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT5M
+      passkey-login-verify:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT5M
+      verify-email-change:
+        captcha-required: true
+        request-limit: 50
+        request-window: PT10M
   passkeys:
     rp-id: localhost
     rp-name: Spring Playground Test
