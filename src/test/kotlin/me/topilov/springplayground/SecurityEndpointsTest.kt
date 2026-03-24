@@ -28,7 +28,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.context.WebApplicationContext
 import java.net.URL
 import java.net.URLDecoder
+import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.time.Instant
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 @SpringBootTest
 @Import(
@@ -36,9 +40,12 @@ import java.nio.charset.StandardCharsets
     TestEmailVerificationConfiguration::class,
     TestPasswordResetConfiguration::class,
     TestPasskeyConfiguration::class,
+    TestTwoFactorConfiguration::class,
 )
 @Sql(
     statements = [
+        "DELETE FROM auth_totp_backup_code",
+        "DELETE FROM auth_totp_credential",
         "DELETE FROM auth_passkey_credential",
         "UPDATE auth_user SET webauthn_user_handle = NULL",
         "UPDATE auth_user SET password_hash = '\$2y\$10\$R51kCmlq52SEJcVep3uDtOxTXp0r9jPwGa5oQQvRuMQA84PVwCjrK', updated_at = CURRENT_TIMESTAMP WHERE id = 1",
@@ -66,6 +73,9 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     lateinit var inMemoryPasskeyCeremonyStore: InMemoryPasskeyCeremonyStore
 
     @Autowired
+    lateinit var inMemoryTwoFactorLoginChallengeStore: InMemoryTwoFactorLoginChallengeStore
+
+    @Autowired
     lateinit var corsProperties: CorsProperties
 
     @Autowired
@@ -79,6 +89,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         inMemoryEmailVerificationTokenStore.clear()
         inMemoryPasswordResetTokenStore.clear()
         inMemoryPasskeyCeremonyStore.clear()
+        inMemoryTwoFactorLoginChallengeStore.clear()
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
             .apply<DefaultMockMvcBuilder>(springSecurity())
             .build()
@@ -105,6 +116,13 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(jsonPath("$.openapi").exists())
             .andExpect(jsonPath("$.paths['/api/public/ping']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/login']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/2fa/status']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/2fa/setup/start']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/2fa/setup/confirm']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/2fa/backup-codes/regenerate']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/2fa/disable']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/2fa/login/verify']").exists())
+            .andExpect(jsonPath("$.paths['/api/auth/2fa/login/verify-backup-code']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/logout']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/passkeys']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/passkeys/register/options']").exists())
@@ -146,6 +164,217 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andReturn()
 
         assertThat(result.request.session).isInstanceOf(MockHttpSession::class.java)
+    }
+
+    @Test
+    fun `authenticated user can enable inspect regenerate backup codes and disable totp`() {
+        val session = loginSession("demo", "demo-password")
+
+        mockMvc.perform(get("/api/auth/2fa/status").session(session))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.enabled").value(false))
+            .andExpect(jsonPath("$.pendingSetup").value(false))
+            .andExpect(jsonPath("$.backupCodesRemaining").value(0))
+
+        val setupResult = mockMvc.perform(
+            post("/api/auth/2fa/setup/start")
+                .session(session),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.secret").isString)
+            .andExpect(jsonPath("$.otpauthUri").value(org.hamcrest.Matchers.containsString("otpauth://totp/")))
+            .andReturn()
+
+        val secret = jsonField(setupResult, "secret")
+        val setupCode = currentTotpCode(secret)
+
+        val confirmResult = mockMvc.perform(
+            post("/api/auth/2fa/setup/confirm")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"code":"$setupCode"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.enabled").value(true))
+            .andExpect(jsonPath("$.backupCodes.length()").value(10))
+            .andReturn()
+
+        val firstBackupCode = jsonField(confirmResult, "backupCodes.0")
+
+        mockMvc.perform(get("/api/auth/2fa/status").session(session))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.enabled").value(true))
+            .andExpect(jsonPath("$.pendingSetup").value(false))
+            .andExpect(jsonPath("$.backupCodesRemaining").value(10))
+            .andExpect(jsonPath("$.enabledAt").isString)
+
+        assertThat(totpCredentialExistsForUser(1)).isTrue()
+        assertThat(activeBackupCodeCountForUser(1)).isEqualTo(10)
+        assertThat(storedBackupCodeHashesForUser(1)).doesNotContain(firstBackupCode)
+
+        val regenerateResult = mockMvc.perform(
+            post("/api/auth/2fa/backup-codes/regenerate")
+                .session(session),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.backupCodes.length()").value(10))
+            .andReturn()
+
+        val regeneratedBackupCode = jsonField(regenerateResult, "backupCodes.0")
+        assertThat(regeneratedBackupCode).isNotEqualTo(firstBackupCode)
+
+        mockMvc.perform(get("/api/auth/2fa/status").session(session))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.backupCodesRemaining").value(10))
+
+        mockMvc.perform(
+            post("/api/auth/2fa/disable")
+                .session(session),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.disabled").value(true))
+
+        mockMvc.perform(get("/api/auth/2fa/status").session(session))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.enabled").value(false))
+            .andExpect(jsonPath("$.pendingSetup").value(false))
+            .andExpect(jsonPath("$.backupCodesRemaining").value(0))
+
+        assertThat(totpCredentialExistsForUser(1)).isFalse()
+        assertThat(activeBackupCodeCountForUser(1)).isEqualTo(0)
+    }
+
+    @Test
+    fun `password login returns short lived challenge and totp verification creates the normal session`() {
+        val session = loginSession("demo", "demo-password")
+        val secret = jsonField(
+            mockMvc.perform(post("/api/auth/2fa/setup/start").session(session))
+                .andExpect(status().isOk)
+                .andReturn(),
+            "secret",
+        )
+
+        mockMvc.perform(
+            post("/api/auth/2fa/setup/confirm")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"code":"${currentTotpCode(secret)}"}"""),
+        )
+            .andExpect(status().isOk)
+
+        mockMvc.perform(post("/api/auth/logout").session(session))
+            .andExpect(status().isNoContent)
+
+        val loginResult = mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+        )
+            .andExpect(status().isAccepted)
+            .andExpect(jsonPath("$.requiresTwoFactor").value(true))
+            .andExpect(jsonPath("$.loginChallengeId").isString)
+            .andExpect(jsonPath("$.methods[0]").value("TOTP"))
+            .andExpect(jsonPath("$.methods[1]").value("BACKUP_CODE"))
+            .andReturn()
+
+        assertThat(loginResult.response.getCookie("JSESSIONID")).isNull()
+
+        val challengeId = jsonField(loginResult, "loginChallengeId")
+
+        val verifyResult = mockMvc.perform(
+            post("/api/auth/2fa/login/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"loginChallengeId":"$challengeId","code":"${currentTotpCode(secret)}"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.authenticated").value(true))
+            .andExpect(jsonPath("$.username").value("demo"))
+            .andExpect(jsonPath("$.email").value("demo@example.com"))
+            .andReturn()
+
+        assertThat(verifyResult.request.session).isInstanceOf(MockHttpSession::class.java)
+        assertThat(inMemoryTwoFactorLoginChallengeStore.find(challengeId)).isNull()
+
+        mockMvc.perform(
+            post("/api/auth/2fa/login/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"loginChallengeId":"$challengeId","code":"${currentTotpCode(secret)}"}"""),
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `login challenge is invalidated after a failed second factor attempt`() {
+        val backupCodes = enableTotpForDemo()
+
+        val challengeId = jsonField(
+            mockMvc.perform(
+                post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+            )
+                .andExpect(status().isAccepted)
+                .andReturn(),
+            "loginChallengeId",
+        )
+
+        mockMvc.perform(
+            post("/api/auth/2fa/login/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"loginChallengeId":"$challengeId","code":"000000"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/auth/2fa/login/verify-backup-code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"loginChallengeId":"$challengeId","backupCode":"${backupCodes.first()}"}"""),
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `backup code login is one time use and stored only as hashes`() {
+        val backupCodes = enableTotpForDemo()
+        val firstBackupCode = backupCodes.first()
+        assertThat(storedBackupCodeHashesForUser(1)).doesNotContain(firstBackupCode)
+
+        val firstChallengeId = jsonField(
+            mockMvc.perform(
+                post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+            )
+                .andExpect(status().isAccepted)
+                .andReturn(),
+            "loginChallengeId",
+        )
+
+        mockMvc.perform(
+            post("/api/auth/2fa/login/verify-backup-code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"loginChallengeId":"$firstChallengeId","backupCode":"$firstBackupCode"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.authenticated").value(true))
+
+        val secondChallengeId = jsonField(
+            mockMvc.perform(
+                post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+            )
+                .andExpect(status().isAccepted)
+                .andReturn(),
+            "loginChallengeId",
+        )
+
+        mockMvc.perform(
+            post("/api/auth/2fa/login/verify-backup-code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"loginChallengeId":"$secondChallengeId","backupCode":"$firstBackupCode"}"""),
+        )
+            .andExpect(status().isUnauthorized)
     }
 
     @Test
@@ -821,6 +1050,39 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         Boolean::class.java,
     ) ?: false
 
+    private fun totpCredentialExistsForUser(userId: Long): Boolean = jdbcTemplate.queryForObject(
+        """
+        SELECT COUNT(*) > 0
+        FROM auth_totp_credential
+        WHERE user_id = ?
+        """.trimIndent(),
+        Boolean::class.java,
+        userId,
+    ) ?: false
+
+    private fun activeBackupCodeCountForUser(userId: Long): Int = jdbcTemplate.queryForObject(
+        """
+        SELECT COUNT(*)
+        FROM auth_totp_backup_code backup_code
+        JOIN auth_totp_credential credential ON credential.id = backup_code.totp_credential_id
+        WHERE credential.user_id = ?
+          AND backup_code.used_at IS NULL
+        """.trimIndent(),
+        Int::class.java,
+        userId,
+    ) ?: 0
+
+    private fun storedBackupCodeHashesForUser(userId: Long): List<String> = jdbcTemplate.queryForList(
+        """
+        SELECT backup_code.code_hash
+        FROM auth_totp_backup_code backup_code
+        JOIN auth_totp_credential credential ON credential.id = backup_code.totp_credential_id
+        WHERE credential.user_id = ?
+        """.trimIndent(),
+        String::class.java,
+        userId,
+    ).filterNotNull()
+
     private fun extractToken(message: RecordingEmailService.SentEmail): String {
         val html = message.url
         val tokenValue = Regex("""token=([^"&]+)""")
@@ -833,6 +1095,65 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     }
 
     private fun uniqueSuffix(): String = System.nanoTime().toString()
+
+    private fun enableTotpForDemo(): List<String> {
+        val session = loginSession("demo", "demo-password")
+        val secret = jsonField(
+            mockMvc.perform(post("/api/auth/2fa/setup/start").session(session))
+                .andExpect(status().isOk)
+                .andReturn(),
+            "secret",
+        )
+
+        val response = mockMvc.perform(
+            post("/api/auth/2fa/setup/confirm")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"code":"${currentTotpCode(secret)}"}"""),
+        )
+            .andExpect(status().isOk)
+            .andReturn()
+
+        mockMvc.perform(post("/api/auth/logout").session(session))
+            .andExpect(status().isNoContent)
+
+        return objectMapper.readTree(response.response.contentAsString)["backupCodes"]
+            .map { it.asText() }
+    }
+
+    private fun currentTotpCode(secret: String): String {
+        val counter = Instant.now().epochSecond / 30
+        val counterBytes = ByteBuffer.allocate(Long.SIZE_BYTES).putLong(counter).array()
+        val mac = Mac.getInstance("HmacSHA1")
+        mac.init(SecretKeySpec(decodeBase32(secret), "HmacSHA1"))
+        val hash = mac.doFinal(counterBytes)
+        val offset = hash.last().toInt() and 0x0f
+        val binary = ((hash[offset].toInt() and 0x7f) shl 24) or
+            ((hash[offset + 1].toInt() and 0xff) shl 16) or
+            ((hash[offset + 2].toInt() and 0xff) shl 8) or
+            (hash[offset + 3].toInt() and 0xff)
+        return "%06d".format(binary % 1_000_000)
+    }
+
+    private fun decodeBase32(value: String): ByteArray {
+        val normalized = value.trim().uppercase().filterNot { it == '=' || it.isWhitespace() }
+        val output = ArrayList<Byte>()
+        var buffer = 0
+        var bitsLeft = 0
+
+        normalized.forEach { character ->
+            val current = BASE32_ALPHABET.indexOf(character)
+            require(current >= 0) { "Unsupported base32 character: $character" }
+            buffer = (buffer shl 5) or current
+            bitsLeft += 5
+            if (bitsLeft >= 8) {
+                bitsLeft -= 8
+                output += ((buffer shr bitsLeft) and 0xff).toByte()
+            }
+        }
+
+        return output.toByteArray()
+    }
 
     private fun loginSession(usernameOrEmail: String, password: String): MockHttpSession =
         mockMvc.perform(
@@ -888,5 +1209,6 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
 
     companion object {
         private val objectMapper = jacksonObjectMapper()
+        private const val BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
     }
 }

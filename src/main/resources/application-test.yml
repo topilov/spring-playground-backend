@@ -29,6 +29,11 @@ app:
     rp-name: Spring Playground Test
     origins: http://localhost:3000
     ceremony-ttl: PT5M
+  two-factor:
+    issuer: Spring Playground Test
+    login-challenge-ttl: PT5M
+    encryption-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    backup-code-count: 10
   mail:
     enabled: false
     from: test-no-reply@example.com

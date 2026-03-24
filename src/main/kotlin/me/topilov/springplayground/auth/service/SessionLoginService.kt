@@ -25,14 +25,7 @@ class SessionLoginService(
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
     ): LoginResponse {
-        val principal = authentication.principal as? AppUserPrincipal
-            ?: throw BadCredentialsException("Unsupported principal")
-        if (!principal.isEnabled) {
-            throw BadCredentialsException("User is disabled")
-        }
-        if (!principal.emailVerified) {
-            throw EmailNotVerifiedException()
-        }
+        val principal = requireLoginAllowed(authentication)
 
         servletRequest.getSession(false)?.invalidate()
 
@@ -47,6 +40,18 @@ class SessionLoginService(
             email = principal.email,
             role = principal.role.name,
         )
+    }
+
+    fun requireLoginAllowed(authentication: Authentication): AppUserPrincipal {
+        val principal = authentication.principal as? AppUserPrincipal
+            ?: throw BadCredentialsException("Unsupported principal")
+        if (!principal.isEnabled) {
+            throw BadCredentialsException("User is disabled")
+        }
+        if (!principal.emailVerified) {
+            throw EmailNotVerifiedException()
+        }
+        return principal
     }
 
     fun createAuthentication(user: AuthUser): Authentication {

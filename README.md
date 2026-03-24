@@ -53,6 +53,9 @@ Template Spring Boot project on Kotlin with session-based security, PostgreSQL, 
 
    The same account also supports login by email: `demo@example.com`.
 
+   If the account later enables TOTP 2FA, this endpoint returns `202 Accepted`
+   with a one-time `loginChallengeId` instead of immediately setting `JSESSIONID`.
+
 5. Call a protected endpoint with the session cookie:
 
    ```bash
@@ -134,6 +137,29 @@ Passkey ceremonies are production-shaped:
 
 The server-side WebAuthn implementation uses Yubico `java-webauthn-server`. It was chosen because it is a mature Java WebAuthn relying-party library with first-class support for registration and assertion ceremonies, credential repositories, and discoverable passkey login.
 
+### TOTP 2FA
+
+The backend also supports authenticator-app TOTP 2FA for password login:
+
+- authenticated setup and management at `/api/auth/2fa/*`
+- one-time backup codes stored only as hashes
+- short-lived Redis-backed `loginChallengeId` state for the second step of password login
+- final session creation through the normal `JSESSIONID` login path after the second factor succeeds
+
+Typical flow:
+
+1. Login normally and keep the authenticated cookie.
+2. `POST /api/auth/2fa/setup/start`
+3. Add the returned `secret` or `otpauthUri` to Google Authenticator, 1Password, Authy, or another compatible app.
+4. `POST /api/auth/2fa/setup/confirm` with the current 6-digit code.
+5. Save the returned backup codes.
+
+After TOTP is enabled, password login changes shape:
+
+- `POST /api/auth/login` returns `202 Accepted` with `loginChallengeId`
+- `POST /api/auth/2fa/login/verify` completes login with a TOTP code
+- `POST /api/auth/2fa/login/verify-backup-code` completes login with a backup code
+
 ## Mail configuration
 
 The application uses Spring Mail for delivery and Thymeleaf templates from `src/main/resources/templates/mail`.
@@ -149,6 +175,10 @@ Available properties:
 - `APP_PASSKEY_RP_NAME`
 - `APP_PASSKEY_ORIGINS`
 - `APP_PASSKEY_CEREMONY_TTL`
+- `APP_TWO_FACTOR_ISSUER`
+- `APP_TWO_FACTOR_LOGIN_CHALLENGE_TTL`
+- `APP_TWO_FACTOR_ENCRYPTION_KEY_BASE64`
+- `APP_TWO_FACTOR_BACKUP_CODE_COUNT`
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_USERNAME`
@@ -162,6 +192,8 @@ Available properties:
 - `APP_PASSWORD_RESET_TTL`
 - `SESSION_COOKIE_SECURE`
 - `SESSION_COOKIE_SAME_SITE`
+
+`APP_TWO_FACTOR_ENCRYPTION_KEY_BASE64` should be set to a strong Base64-encoded AES key outside local and test environments because stored TOTP secrets are encrypted at rest with it.
 
 Example local setup for a frontend reset link:
 

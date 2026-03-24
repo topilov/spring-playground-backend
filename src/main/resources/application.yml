@@ -48,6 +48,11 @@ app:
     rp-name: ${APP_PASSKEY_RP_NAME:Spring Playground}
     origins: ${APP_PASSKEY_ORIGINS:https://auth.topilov.dev}
     ceremony-ttl: ${APP_PASSKEY_CEREMONY_TTL:PT5M}
+  two-factor:
+    issuer: ${APP_TWO_FACTOR_ISSUER:Spring Playground}
+    login-challenge-ttl: ${APP_TWO_FACTOR_LOGIN_CHALLENGE_TTL:PT5M}
+    encryption-key-base64: ${APP_TWO_FACTOR_ENCRYPTION_KEY_BASE64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+    backup-code-count: ${APP_TWO_FACTOR_BACKUP_CODE_COUNT:10}
   mail:
     enabled: true
     api-key: ${RESEND_API_KEY}

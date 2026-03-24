@@ -49,6 +49,7 @@ import java.time.Instant
 class AuthService(
     private val authenticationManager: AuthenticationManager,
     private val sessionLoginService: SessionLoginService,
+    private val twoFactorLoginService: TwoFactorLoginService,
     private val authUserRepository: AuthUserRepository,
     private val userProfileRepository: UserProfileRepository,
     private val passwordResetTokenStore: PasswordResetTokenStore,
@@ -213,12 +214,18 @@ class AuthService(
         @Valid request: LoginRequest,
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
-    ): LoginResponse {
+    ): PasswordLoginResult {
         val authentication = authenticationManager.authenticate(
             UsernamePasswordAuthenticationToken.unauthenticated(request.usernameOrEmail, request.password),
         )
+        val principal = sessionLoginService.requireLoginAllowed(authentication)
+        if (twoFactorLoginService.isEnabledForUser(principal.id)) {
+            return TwoFactorRequiredLoginResult(twoFactorLoginService.createLoginChallenge(principal.id))
+        }
 
-        return sessionLoginService.login(authentication, servletRequest, servletResponse)
+        return SessionEstablishedLoginResult(
+            sessionLoginService.login(authentication, servletRequest, servletResponse),
+        )
     }
 
     fun logout(

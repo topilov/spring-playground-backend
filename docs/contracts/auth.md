@@ -5,6 +5,7 @@ Machine-readable contract: `openapi/openapi.yaml` and runtime `/v3/api-docs`.
 Change note for this task: `Breaking` because newly registered users must verify email before `POST /api/auth/login` succeeds.
 Change note for this task: `Non-breaking` because the forgot/reset password HTTP contract is unchanged while reset tokens now live in Redis.
 Change note for this task: `Non-breaking` because passkeys add new registration, management, and login endpoints without changing the existing password-login contract.
+Change note for this task: `Non-breaking` because TOTP 2FA is opt-in; accounts that enable it receive a second-step login challenge instead of an immediate authenticated session.
 
 ## POST /api/auth/register
 
@@ -348,6 +349,8 @@ Current request shape:
 
 **Response Body**
 
+When the account does not require 2FA:
+
 ```json
 {
   "authenticated": true,
@@ -358,9 +361,21 @@ Current request shape:
 }
 ```
 
+When the account has TOTP 2FA enabled:
+
+```json
+{
+  "requiresTwoFactor": true,
+  "loginChallengeId": "opaque-login-challenge-id",
+  "methods": ["TOTP", "BACKUP_CODE"],
+  "expiresAt": "2026-03-24T10:15:30Z"
+}
+```
+
 **Typical Success Status**
 
 - `200 OK`
+- `202 Accepted` when the password is correct but a second factor is still required.
 
 **Typical Error Statuses**
 
@@ -389,12 +404,271 @@ curl -i \
 **Notes**
 
 - Successful login sets the `JSESSIONID` session cookie.
+- A `202 Accepted` 2FA challenge response does not set `JSESSIONID`.
 - Successful login requires a verified email address.
+- When 2FA is enabled, backend stores a short-lived, one-time login challenge in Redis. The authenticated session is created only after the follow-up 2FA verification succeeds.
 - Current cookie behavior is session-based, `HttpOnly`, and `SameSite=Lax`.
 - Default non-local configuration also marks the session cookie `Secure`; the `local` and `test` profiles disable `Secure` so HTTP development and tests still work.
 - CSRF is currently disabled, so no CSRF token is required for login or follow-up API calls.
 - Frontend should send login and protected requests with credentials enabled, for example `fetch(..., { credentials: 'include' })`, so the browser stores and resends `JSESSIONID`.
 - Frontend should use OpenAPI for generated request and response types, then follow this markdown doc for session-flow behavior details.
+
+## GET /api/auth/2fa/status
+
+**Purpose**
+
+Return the authenticated user's current TOTP 2FA state.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Response Body**
+
+```json
+{
+  "enabled": true,
+  "pendingSetup": false,
+  "backupCodesRemaining": 9,
+  "enabledAt": "2026-03-24T10:20:00Z"
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `401 Unauthorized` when the session cookie is missing or invalid.
+
+## POST /api/auth/2fa/setup/start
+
+**Purpose**
+
+Start or restart authenticated TOTP setup and return the temporary setup secret.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Response Body**
+
+```json
+{
+  "secret": "JBSWY3DPEHPK3PXP",
+  "otpauthUri": "otpauth://totp/Spring%20Playground:demo%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Spring%20Playground&algorithm=SHA1&digits=6&period=30"
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `401 Unauthorized` when the session cookie is missing or invalid.
+- `409 Conflict` when TOTP 2FA is already enabled for the account.
+
+**Notes**
+
+- The returned secret is only exposed during setup.
+- Setup stores the encrypted TOTP secret in PostgreSQL and does not enable 2FA until confirmation succeeds.
+
+## POST /api/auth/2fa/setup/confirm
+
+**Purpose**
+
+Verify a TOTP code against the pending setup secret and enable 2FA.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Request Body**
+
+```json
+{
+  "code": "123456"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "enabled": true,
+  "backupCodes": [
+    "ABCD-EFGH-JKLM",
+    "MNPR-STUV-WXYZ"
+  ]
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when setup was not started or the confirmation code is invalid.
+- `401 Unauthorized` when the session cookie is missing or invalid.
+- `409 Conflict` when TOTP 2FA is already enabled for the account.
+
+**Notes**
+
+- Successful confirmation enables TOTP 2FA and returns the plaintext backup codes exactly once.
+- Backend stores only hashed backup codes and never returns them again after this response or a regenerate call.
+
+## POST /api/auth/2fa/backup-codes/regenerate
+
+**Purpose**
+
+Replace every active backup code for the authenticated user with a fresh set.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Response Body**
+
+```json
+{
+  "backupCodes": [
+    "ABCD-EFGH-JKLM",
+    "MNPR-STUV-WXYZ"
+  ]
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when TOTP 2FA is not enabled.
+- `401 Unauthorized` when the session cookie is missing or invalid.
+
+**Notes**
+
+- Regeneration invalidates all previously issued backup codes.
+
+## POST /api/auth/2fa/disable
+
+**Purpose**
+
+Disable TOTP 2FA for the authenticated user and remove stored backup codes.
+
+**Authentication**
+
+Valid `JSESSIONID` session required.
+
+**Response Body**
+
+```json
+{
+  "disabled": true
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `401 Unauthorized` when the session cookie is missing or invalid.
+
+## POST /api/auth/2fa/login/verify
+
+**Purpose**
+
+Finish a pending password-login challenge by verifying a TOTP code and then create the normal authenticated session.
+
+**Authentication**
+
+No prior session required. This endpoint uses the one-time `loginChallengeId` issued by `POST /api/auth/login`.
+
+**Request Body**
+
+```json
+{
+  "loginChallengeId": "opaque-login-challenge-id",
+  "code": "123456"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "authenticated": true,
+  "userId": 1,
+  "username": "demo",
+  "email": "demo@example.com",
+  "role": "USER"
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when the login challenge is invalid, expired, or already consumed.
+- `401 Unauthorized` when the second factor is invalid.
+
+**Notes**
+
+- Successful verification creates the same normal `JSESSIONID` session as a password-only login.
+- The login challenge is one-time and fails closed. Any verification attempt consumes it.
+
+## POST /api/auth/2fa/login/verify-backup-code
+
+**Purpose**
+
+Finish a pending password-login challenge by verifying a backup code and then create the normal authenticated session.
+
+**Authentication**
+
+No prior session required. This endpoint uses the one-time `loginChallengeId` issued by `POST /api/auth/login`.
+
+**Request Body**
+
+```json
+{
+  "loginChallengeId": "opaque-login-challenge-id",
+  "backupCode": "ABCD-EFGH-JKLM"
+}
+```
+
+**Response Body**
+
+```json
+{
+  "authenticated": true,
+  "userId": 1,
+  "username": "demo",
+  "email": "demo@example.com",
+  "role": "USER"
+}
+```
+
+**Typical Success Status**
+
+- `200 OK`
+
+**Typical Error Statuses**
+
+- `400 Bad Request` when the login challenge is invalid, expired, or already consumed.
+- `401 Unauthorized` when the backup code is invalid or already used.
+
+**Notes**
+
+- Backup codes are one-time use.
+- Successful verification creates the same normal `JSESSIONID` session as a password-only login.
 
 ## Passkey Payload Notes
 
