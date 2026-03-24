@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import me.topilov.springplayground.auth.security.AppUserPrincipal
 import me.topilov.springplayground.profile.dto.ChangePasswordRequest
@@ -298,5 +299,6 @@ class ProfileController(
     @PostMapping("/me/email/verify")
     fun verifyEmailChange(
         @Valid @RequestBody request: VerifyEmailChangeRequest,
-    ): ProfileResponse = profileService.verifyEmailChange(request)
+        servletRequest: HttpServletRequest,
+    ): ProfileResponse = profileService.verifyEmailChange(request, servletRequest)
 }

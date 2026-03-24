@@ -9,4 +9,5 @@ data class ForgotPasswordRequest(
     @field:Email
     @field:Size(max = 255)
     val email: String,
+    val captchaToken: String? = null,
 )

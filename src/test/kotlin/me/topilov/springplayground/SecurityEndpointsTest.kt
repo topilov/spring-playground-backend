@@ -1,6 +1,9 @@
 package me.topilov.springplayground
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import me.topilov.springplayground.abuse.InMemoryCooldownStore
+import me.topilov.springplayground.abuse.InMemoryRateLimitStore
+import me.topilov.springplayground.abuse.TestAbuseProtectionConfiguration
 import me.topilov.springplayground.auth.*
 import me.topilov.springplayground.auth.passkey.InMemoryPasskeyCeremonyStore
 import me.topilov.springplayground.auth.passkey.TestPasskeyConfiguration
@@ -44,6 +47,7 @@ import javax.crypto.spec.SecretKeySpec
     TestPasskeyConfiguration::class,
     TestTwoFactorConfiguration::class,
     TestPendingEmailChangeConfiguration::class,
+    TestAbuseProtectionConfiguration::class,
 )
 @Sql(
     statements = [
@@ -83,6 +87,12 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     lateinit var inMemoryTwoFactorLoginChallengeStore: InMemoryTwoFactorLoginChallengeStore
 
     @Autowired
+    lateinit var inMemoryRateLimitStore: InMemoryRateLimitStore
+
+    @Autowired
+    lateinit var inMemoryCooldownStore: InMemoryCooldownStore
+
+    @Autowired
     lateinit var corsProperties: CorsProperties
 
     @Autowired
@@ -98,6 +108,8 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         inMemoryPendingEmailChangeTokenStore.clear()
         inMemoryPasskeyCeremonyStore.clear()
         inMemoryTwoFactorLoginChallengeStore.clear()
+        inMemoryRateLimitStore.clear()
+        inMemoryCooldownStore.clear()
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
             .apply<DefaultMockMvcBuilder>(springSecurity())
             .build()
@@ -168,7 +180,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         val result = mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                .content(loginPayload("demo", "demo-password")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.authenticated").value(true))
@@ -280,7 +292,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         val loginResult = mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                .content(loginPayload("demo", "demo-password")),
         )
             .andExpect(status().isAccepted)
             .andExpect(jsonPath("$.requiresTwoFactor").value(true))
@@ -296,7 +308,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         val verifyResult = mockMvc.perform(
             post("/api/auth/2fa/login/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"loginChallengeId":"$challengeId","code":"${currentTotpCode(secret)}"}"""),
+                .content(twoFactorPayload(challengeId, currentTotpCode(secret))),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.authenticated").value(true))
@@ -310,9 +322,21 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/2fa/login/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"loginChallengeId":"$challengeId","code":"${currentTotpCode(secret)}"}"""),
+                .content(twoFactorPayload(challengeId, currentTotpCode(secret))),
         )
             .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `login rejects missing captcha token with stable bad request response`() {
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.code").value("CAPTCHA_VALIDATION_FAILED"))
+            .andExpect(jsonPath("$.error").isString)
     }
 
     @Test
@@ -323,7 +347,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             mockMvc.perform(
                 post("/api/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                    .content(loginPayload("demo", "demo-password")),
             )
                 .andExpect(status().isAccepted)
                 .andReturn(),
@@ -333,14 +357,14 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/2fa/login/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"loginChallengeId":"$challengeId","code":"000000"}"""),
+                .content(twoFactorPayload(challengeId, "000000")),
         )
             .andExpect(status().isUnauthorized)
 
         mockMvc.perform(
             post("/api/auth/2fa/login/verify-backup-code")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"loginChallengeId":"$challengeId","backupCode":"${backupCodes.first()}"}"""),
+                .content(twoFactorBackupPayload(challengeId, backupCodes.first())),
         )
             .andExpect(status().isBadRequest)
     }
@@ -355,7 +379,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             mockMvc.perform(
                 post("/api/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                    .content(loginPayload("demo", "demo-password")),
             )
                 .andExpect(status().isAccepted)
                 .andReturn(),
@@ -365,7 +389,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/2fa/login/verify-backup-code")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"loginChallengeId":"$firstChallengeId","backupCode":"$firstBackupCode"}"""),
+                .content(twoFactorBackupPayload(firstChallengeId, firstBackupCode)),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.authenticated").value(true))
@@ -374,7 +398,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             mockMvc.perform(
                 post("/api/auth/login")
                     .contentType(MediaType.APPLICATION_JSON)
-                    .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                    .content(loginPayload("demo", "demo-password")),
             )
                 .andExpect(status().isAccepted)
                 .andReturn(),
@@ -384,9 +408,57 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/2fa/login/verify-backup-code")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"loginChallengeId":"$secondChallengeId","backupCode":"$firstBackupCode"}"""),
+                .content(twoFactorBackupPayload(secondChallengeId, firstBackupCode)),
         )
             .andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `login and two factor verification are throttled independently`() {
+        val backupCodes = enableTotpForDemo()
+        val challengeId = jsonField(
+            mockMvc.perform(
+                post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(loginPayload("demo", "demo-password")),
+            )
+                .andExpect(status().isAccepted)
+                .andReturn(),
+            "loginChallengeId",
+        )
+
+        repeat(5) {
+            mockMvc.perform(
+                post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(loginPayload("demo", "wrong-password")),
+            )
+                .andExpect(status().isUnauthorized)
+        }
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(loginPayload("demo", "wrong-password")),
+        )
+            .andExpect(status().isTooManyRequests)
+            .andExpect(header().exists("Retry-After"))
+            .andExpect(jsonPath("$.code").value("LOGIN_THROTTLED"))
+            .andExpect(jsonPath("$.retryAfterSeconds").isNumber)
+
+        mockMvc.perform(
+            post("/api/auth/2fa/login/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(twoFactorPayload(challengeId, "000000")),
+        )
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/auth/2fa/login/verify-backup-code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(twoFactorBackupPayload(challengeId, backupCodes.first())),
+        )
+            .andExpect(status().isBadRequest)
     }
 
     @Test
@@ -410,7 +482,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             post("/api/auth/login")
                 .header("Origin", frontendOrigin)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                .content(loginPayload("demo", "demo-password")),
         )
             .andExpect(status().isOk)
             .andExpect(header().string("Access-Control-Allow-Origin", frontendOrigin))
@@ -422,7 +494,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         val session = mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo@example.com","password":"demo-password"}"""),
+                .content(loginPayload("demo@example.com", "demo-password")),
         )
             .andExpect(status().isOk)
             .andReturn()
@@ -534,7 +606,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         val optionsResult = mockMvc.perform(
             post("/api/auth/passkey-login/options")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{}"""),
+                .content(passkeyLoginOptionsPayload()),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.ceremonyId").isString)
@@ -552,6 +624,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
                     """
                     {
                       "ceremonyId":"$ceremonyId",
+                      "captchaToken":"test-captcha-token",
                       "credential":{
                         "credentialId":"demo-login-passkey"
                       }
@@ -772,7 +845,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
-                    {"username":"$username","email":"$email","password":"$password"}
+                    ${registerPayload(username, email, password)}
                     """.trimIndent(),
                 ),
         )
@@ -793,7 +866,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$email","password":"$password"}"""),
+                .content(loginPayload(email, password)),
         )
             .andExpect(status().isUnauthorized)
             .andExpect(jsonPath("$.code").value("EMAIL_NOT_VERIFIED"))
@@ -804,7 +877,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         val unique = uniqueSuffix()
         val username = "duplicate-$unique"
         val email = "duplicate-$unique@example.com"
-        val payload = """{"username":"$username","email":"$email","password":"very-secret-password"}"""
+        val payload = registerPayload(username, email, "very-secret-password")
 
         mockMvc.perform(
             post("/api/auth/register")
@@ -851,7 +924,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/forgot-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"demo@example.com"}"""),
+                .content(emailCaptchaPayload("demo@example.com")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
@@ -864,7 +937,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/forgot-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"missing@example.com"}"""),
+                .content(emailCaptchaPayload("missing@example.com")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
@@ -873,11 +946,57 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     }
 
     @Test
+    fun `forgot password cooldown stays enumeration safe while suppressing repeated sends`() {
+        mockMvc.perform(
+            post("/api/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(emailCaptchaPayload("demo@example.com")),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        assertThat(recordingEmailService.sentEmails()).hasSize(1)
+        recordingEmailService.clear()
+
+        mockMvc.perform(
+            post("/api/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(emailCaptchaPayload("demo@example.com")),
+        )
+            .andExpect(status().isTooManyRequests)
+            .andExpect(header().exists("Retry-After"))
+            .andExpect(jsonPath("$.code").value("COOLDOWN_ACTIVE"))
+            .andExpect(jsonPath("$.retryAfterSeconds").isNumber)
+
+        assertThat(recordingEmailService.sentEmails()).isEmpty()
+
+        mockMvc.perform(
+            post("/api/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(emailCaptchaPayload("missing@example.com")),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        assertThat(recordingEmailService.sentEmails()).isEmpty()
+
+        mockMvc.perform(
+            post("/api/auth/forgot-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(emailCaptchaPayload("missing@example.com")),
+        )
+            .andExpect(status().isTooManyRequests)
+            .andExpect(header().exists("Retry-After"))
+            .andExpect(jsonPath("$.code").value("COOLDOWN_ACTIVE"))
+            .andExpect(jsonPath("$.retryAfterSeconds").isNumber)
+    }
+
+    @Test
     fun `password reset tokens are not persisted in postgres`() {
         mockMvc.perform(
             post("/api/auth/forgot-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"demo@example.com"}"""),
+                .content(emailCaptchaPayload("demo@example.com")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
@@ -895,7 +1014,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"username":"$username","email":"$email","password":"$password"}"""),
+                .content(registerPayload(username, email, password)),
         )
             .andExpect(status().isOk)
 
@@ -912,7 +1031,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$email","password":"$password"}"""),
+                .content(loginPayload(email, password)),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.username").value(username))
@@ -928,7 +1047,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"username":"$username","email":"$email","password":"$password"}"""),
+                .content(registerPayload(username, email, password)),
         )
             .andExpect(status().isOk)
 
@@ -938,7 +1057,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/resend-verification-email")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"$email"}"""),
+                .content(emailCaptchaPayload(email)),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
@@ -960,12 +1079,45 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/resend-verification-email")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"missing-$unique@example.com"}"""),
+                .content(emailCaptchaPayload("missing-$unique@example.com")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.accepted").value(true))
 
         assertThat(recordingEmailService.sentEmails()).isEmpty()
+    }
+
+    @Test
+    fun `resend verification cooldown returns stable throttled response with retry timing`() {
+        val unique = uniqueSuffix()
+        val username = "cooldown-user-$unique"
+        val email = "cooldown-user-$unique@example.com"
+
+        mockMvc.perform(
+            post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(registerPayload(username, email, "very-secret-password")),
+        )
+            .andExpect(status().isOk)
+
+        recordingEmailService.clear()
+
+        mockMvc.perform(
+            post("/api/auth/resend-verification-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(emailCaptchaPayload(email)),
+        )
+            .andExpect(status().isOk)
+
+        mockMvc.perform(
+            post("/api/auth/resend-verification-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(emailCaptchaPayload(email)),
+        )
+            .andExpect(status().isTooManyRequests)
+            .andExpect(header().exists("Retry-After"))
+            .andExpect(jsonPath("$.code").value("COOLDOWN_ACTIVE"))
+            .andExpect(jsonPath("$.retryAfterSeconds").isNumber)
     }
 
     @Test
@@ -979,7 +1131,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"username":"$username","email":"$email","password":"$oldPassword"}"""),
+                .content(registerPayload(username, email, oldPassword)),
         )
             .andExpect(status().isOk)
 
@@ -996,7 +1148,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/forgot-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"email":"$email"}"""),
+                .content(emailCaptchaPayload(email)),
         )
             .andExpect(status().isOk)
 
@@ -1005,7 +1157,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/reset-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"token":"$token","newPassword":"$newPassword"}"""),
+                .content(resetPasswordPayload(token, newPassword)),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.reset").value(true))
@@ -1013,14 +1165,14 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$email","password":"$oldPassword"}"""),
+                .content(loginPayload(email, oldPassword)),
         )
             .andExpect(status().isUnauthorized)
 
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$email","password":"$newPassword"}"""),
+                .content(loginPayload(email, newPassword)),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.username").value(username))
@@ -1031,7 +1183,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/reset-password")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"token":"invalid-token","newPassword":"new-password-value"}"""),
+                .content(resetPasswordPayload("invalid-token", "new-password-value")),
         )
             .andExpect(status().isBadRequest)
     }
@@ -1053,14 +1205,14 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                .content(loginPayload("demo", "demo-password")),
         )
             .andExpect(status().isUnauthorized)
 
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$newUsername","password":"demo-password"}"""),
+                .content(loginPayload(newUsername, "demo-password")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.username").value(newUsername))
@@ -1075,7 +1227,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"username":"$username","email":"$email","password":"very-secret-password"}"""),
+                .content(registerPayload(username, email, "very-secret-password")),
         )
             .andExpect(status().isOk)
 
@@ -1107,14 +1259,14 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+                .content(loginPayload("demo", "demo-password")),
         )
             .andExpect(status().isUnauthorized)
 
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo","password":"$newPassword"}"""),
+                .content(loginPayload("demo", newPassword)),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.authenticated").value(true))
@@ -1174,14 +1326,14 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/profile/me/email/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"token":"$firstToken"}"""),
+                .content(emailChangeVerifyPayload(firstToken)),
         )
             .andExpect(status().isBadRequest)
 
         mockMvc.perform(
             post("/api/profile/me/email/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"token":"$secondToken"}"""),
+                .content(emailChangeVerifyPayload(secondToken)),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.email").value(secondEmail))
@@ -1189,21 +1341,21 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/profile/me/email/verify")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"token":"$secondToken"}"""),
+                .content(emailChangeVerifyPayload(secondToken)),
         )
             .andExpect(status().isBadRequest)
 
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"demo@example.com","password":"demo-password"}"""),
+                .content(loginPayload("demo@example.com", "demo-password")),
         )
             .andExpect(status().isUnauthorized)
 
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$secondEmail","password":"demo-password"}"""),
+                .content(loginPayload(secondEmail, "demo-password")),
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.email").value(secondEmail))
@@ -1218,7 +1370,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"username":"$username","email":"$email","password":"very-secret-password"}"""),
+                .content(registerPayload(username, email, "very-secret-password")),
         )
             .andExpect(status().isOk)
 
@@ -1369,7 +1521,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"usernameOrEmail":"$usernameOrEmail","password":"$password"}"""),
+                .content(loginPayload(usernameOrEmail, password)),
         )
             .andExpect(status().isOk)
             .andReturn()
@@ -1385,7 +1537,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         mockMvc.perform(
             post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"username":"$username","email":"$email","password":"$password"}"""),
+                .content(registerPayload(username, email, password)),
         )
             .andExpect(status().isOk)
 
@@ -1414,6 +1566,34 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         }
         return node.asText()
     }
+
+    private fun registerPayload(username: String, email: String, password: String): String =
+        """{"username":"$username","email":"$email","password":"$password","captchaToken":"test-captcha-token"}"""
+
+    private fun loginPayload(usernameOrEmail: String, password: String): String =
+        """{"usernameOrEmail":"$usernameOrEmail","password":"$password","captchaToken":"test-captcha-token"}"""
+
+    private fun emailCaptchaPayload(email: String): String =
+        """{"email":"$email","captchaToken":"test-captcha-token"}"""
+
+    private fun twoFactorPayload(loginChallengeId: String, code: String): String =
+        """{"loginChallengeId":"$loginChallengeId","code":"$code","captchaToken":"test-captcha-token"}"""
+
+    private fun twoFactorBackupPayload(loginChallengeId: String, backupCode: String): String =
+        """{"loginChallengeId":"$loginChallengeId","backupCode":"$backupCode","captchaToken":"test-captcha-token"}"""
+
+    private fun passkeyLoginOptionsPayload(usernameOrEmail: String? = null): String =
+        if (usernameOrEmail == null) {
+            """{"captchaToken":"test-captcha-token"}"""
+        } else {
+            """{"usernameOrEmail":"$usernameOrEmail","captchaToken":"test-captcha-token"}"""
+        }
+
+    private fun resetPasswordPayload(token: String, newPassword: String): String =
+        """{"token":"$token","newPassword":"$newPassword","captchaToken":"test-captcha-token"}"""
+
+    private fun emailChangeVerifyPayload(token: String): String =
+        """{"token":"$token","captchaToken":"test-captcha-token"}"""
 
     private fun pathSegmentIndex(value: String): Int = value.toInt()
 

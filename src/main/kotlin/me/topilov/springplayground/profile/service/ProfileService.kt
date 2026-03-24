@@ -1,6 +1,9 @@
 package me.topilov.springplayground.profile.service
 
+import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
+import me.topilov.springplayground.abuse.AbuseProtectionFlow
+import me.topilov.springplayground.abuse.AbuseProtectionService
 import me.topilov.springplayground.auth.exception.AuthEmailAlreadyUsedException
 import me.topilov.springplayground.auth.exception.AuthUsernameAlreadyUsedException
 import me.topilov.springplayground.auth.repository.AuthUserRepository
@@ -37,6 +40,7 @@ class ProfileService(
     private val pendingEmailChangeTokenStore: PendingEmailChangeTokenStore,
     private val emailService: EmailService,
     private val mailProperties: MailProperties,
+    private val abuseProtectionService: AbuseProtectionService,
 ) {
     @Transactional(readOnly = true)
     fun getCurrentProfile(userId: Long): ProfileResponse = userProfileRepository.findByUserId(userId)
@@ -118,7 +122,14 @@ class ProfileService(
     }
 
     @Transactional
-    fun verifyEmailChange(@Valid request: VerifyEmailChangeRequest): ProfileResponse {
+    fun verifyEmailChange(
+        @Valid request: VerifyEmailChangeRequest,
+        servletRequest: HttpServletRequest,
+    ): ProfileResponse {
+        abuseProtectionService.protect(
+            AbuseProtectionFlow.VERIFY_EMAIL_CHANGE,
+            abuseProtectionService.buildContext(request.captchaToken, servletRequest, request.token.trim()),
+        )
         val pendingChange = pendingEmailChangeTokenStore.findPendingChange(request.token)
             ?: throw InvalidPendingEmailChangeTokenException()
 

@@ -9,4 +9,5 @@ data class ResetPasswordRequest(
     @field:NotBlank
     @field:Size(min = 8, max = 100)
     val newPassword: String,
+    val captchaToken: String? = null,
 )

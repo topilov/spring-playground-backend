@@ -69,7 +69,8 @@ class PasskeyController(
     @PostMapping("/passkey-login/options")
     fun startPasskeyLogin(
         @Valid @RequestBody request: PasskeyLoginOptionsRequest,
-    ): PasskeyLoginOptionsResponse = passkeyAuthenticationService.startAuthentication(request)
+        servletRequest: HttpServletRequest,
+    ): PasskeyLoginOptionsResponse = passkeyAuthenticationService.startAuthentication(request, servletRequest)
 
     @PostMapping("/passkey-login/verify")
     fun finishPasskeyLogin(

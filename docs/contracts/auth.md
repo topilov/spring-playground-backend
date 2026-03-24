@@ -2,10 +2,9 @@
 
 Machine-readable contract: `openapi/openapi.yaml` and runtime `/v3/api-docs`.
 
-Change note for this task: `Breaking` because newly registered users must verify email before `POST /api/auth/login` succeeds.
-Change note for this task: `Non-breaking` because the forgot/reset password HTTP contract is unchanged while reset tokens now live in Redis.
-Change note for this task: `Non-breaking` because passkeys add new registration, management, and login endpoints without changing the existing password-login contract.
-Change note for this task: `Non-breaking` because TOTP 2FA is opt-in; accounts that enable it receive a second-step login challenge instead of an immediate authenticated session.
+Change note for this task: `Breaking` because sensitive public auth/security requests now require a `captchaToken` and can return abuse-protection `429 Too Many Requests` responses with `retryAfterSeconds`.
+Change note for this task: `Non-breaking` because forgot/reset password tokens remain Redis-backed and the non-enumerating accepted behavior is preserved for first-time forgot/resend submissions.
+Change note for this task: `Non-breaking` because passkeys and TOTP 2FA still use the same session model while now participating in centralized abuse protection.
 
 ## POST /api/auth/register
 
@@ -23,7 +22,8 @@ No prior authentication required.
 {
   "username": "new-user",
   "email": "new-user@example.com",
-  "password": "very-secret-password"
+  "password": "very-secret-password",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -33,7 +33,8 @@ Current request shape:
 {
   "username": "string, required, must not be blank, max 64 chars",
   "email": "string, required, must be a valid email, max 255 chars",
-  "password": "string, required, must not be blank, min 8 chars, max 100 chars"
+  "password": "string, required, must not be blank, min 8 chars, max 100 chars",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -54,6 +55,8 @@ Current request shape:
 **Typical Error Statuses**
 
 - `400 Bad Request` when request validation fails.
+- `400 Bad Request` when captcha validation fails.
+- `429 Too Many Requests` when abuse protection throttles the endpoint.
 - `409 Conflict` when the username or email is already used.
 
 Conflict response body example:
@@ -69,7 +72,7 @@ Conflict response body example:
 ```bash
 curl -i \
   -H 'Content-Type: application/json' \
-  -d '{"username":"new-user","email":"new-user@example.com","password":"very-secret-password"}' \
+  -d '{"username":"new-user","email":"new-user@example.com","password":"very-secret-password","captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/auth/register
 ```
 
@@ -151,7 +154,8 @@ No prior authentication required.
 
 ```json
 {
-  "email": "demo@example.com"
+  "email": "demo@example.com",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -159,7 +163,8 @@ Current request shape:
 
 ```json
 {
-  "email": "string, required, must be a valid email, max 255 chars"
+  "email": "string, required, must be a valid email, max 255 chars",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -177,14 +182,14 @@ Current request shape:
 
 **Typical Error Statuses**
 
-- No user-specific error is exposed. Current implementation returns the same accepted response for existing, missing, and already verified emails.
+- `429 Too Many Requests` when abuse protection or the resend cooldown is active. Cooldowns are keyed by the submitted email so repeated existing and repeated missing emails stay behaviorally aligned.
 
 **curl**
 
 ```bash
 curl -i \
   -H 'Content-Type: application/json' \
-  -d '{"email":"demo@example.com"}' \
+  -d '{"email":"demo@example.com","captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/auth/resend-verification-email
 ```
 
@@ -192,6 +197,7 @@ curl -i \
 
 - When the account exists and is still unverified, backend stores a fresh one-time verification token in Redis and attempts to send a new verification email.
 - When the account does not exist or is already verified, backend still returns the same accepted response.
+- Repeated submissions for the same email can return `429` with `code = "COOLDOWN_ACTIVE"` and `retryAfterSeconds`.
 
 ## POST /api/auth/forgot-password
 
@@ -207,7 +213,8 @@ No prior authentication required.
 
 ```json
 {
-  "email": "demo@example.com"
+  "email": "demo@example.com",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -215,7 +222,8 @@ Current request shape:
 
 ```json
 {
-  "email": "string, required, must be a valid email, max 255 chars"
+  "email": "string, required, must be a valid email, max 255 chars",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -234,14 +242,14 @@ Current request shape:
 **Typical Error Statuses**
 
 - `400 Bad Request` when the email field is blank or malformed.
-- No user-specific error is exposed. Current implementation returns the same accepted response for existing and missing emails.
+- `429 Too Many Requests` when abuse protection or the forgot-password cooldown is active. Cooldowns are keyed by the submitted email so repeated existing and repeated missing emails stay behaviorally aligned.
 
 **curl**
 
 ```bash
 curl -i \
   -H 'Content-Type: application/json' \
-  -d '{"email":"demo@example.com"}' \
+  -d '{"email":"demo@example.com","captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/auth/forgot-password
 ```
 
@@ -250,6 +258,7 @@ curl -i \
 - When the account exists, backend stores a one-time reset token in Redis with the configured TTL and attempts to send a reset email.
 - The reset email link points to `APP_PUBLIC_BASE_URL + APP_RESET_PASSWORD_PATH` with the token in the `token` query parameter.
 - When the account does not exist, backend still returns the same accepted response.
+- Repeated submissions for the same email can return `429` with `code = "COOLDOWN_ACTIVE"` and `retryAfterSeconds`.
 
 ## POST /api/auth/reset-password
 
@@ -266,7 +275,8 @@ No prior authentication required.
 ```json
 {
   "token": "token-from-email",
-  "newPassword": "new-very-secret-password"
+  "newPassword": "new-very-secret-password",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -275,7 +285,8 @@ Current request shape:
 ```json
 {
   "token": "string, required, must not be blank",
-  "newPassword": "string, required, must not be blank, min 8 chars, max 100 chars"
+  "newPassword": "string, required, must not be blank, min 8 chars, max 100 chars",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -295,6 +306,7 @@ Current request shape:
 
 - `400 Bad Request` when request validation fails.
 - `400 Bad Request` when the reset token is invalid or expired.
+- `429 Too Many Requests` when abuse protection throttles the endpoint.
 
 Token error response body example:
 
@@ -309,7 +321,7 @@ Token error response body example:
 ```bash
 curl -i \
   -H 'Content-Type: application/json' \
-  -d '{"token":"token-from-email","newPassword":"new-very-secret-password"}' \
+  -d '{"token":"token-from-email","newPassword":"new-very-secret-password","captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/auth/reset-password
 ```
 
@@ -334,7 +346,8 @@ No prior authentication required.
 ```json
 {
   "usernameOrEmail": "demo",
-  "password": "demo-password"
+  "password": "demo-password",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -343,7 +356,8 @@ Current request shape:
 ```json
 {
   "usernameOrEmail": "string, required, must not be blank",
-  "password": "string, required, must not be blank"
+  "password": "string, required, must not be blank",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -380,8 +394,10 @@ When the account has TOTP 2FA enabled:
 **Typical Error Statuses**
 
 - `400 Bad Request` with the framework default error body when required fields are blank.
+- `400 Bad Request` with a JSON body when captcha validation fails.
 - `401 Unauthorized` with an empty body when credentials are invalid.
 - `401 Unauthorized` with an empty body for blank login fields in the current implementation.
+- `429 Too Many Requests` with a JSON body when login abuse protection throttles repeated attempts. Current response includes `code = "LOGIN_THROTTLED"` and `retryAfterSeconds`.
 - `401 Unauthorized` with a JSON body when the credentials are valid but the email is not verified:
 
 ```json
@@ -397,7 +413,7 @@ When the account has TOTP 2FA enabled:
 curl -i \
   -c cookies.txt \
   -H 'Content-Type: application/json' \
-  -d '{"usernameOrEmail":"demo","password":"demo-password"}' \
+  -d '{"usernameOrEmail":"demo","password":"demo-password","captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/auth/login
 ```
 
@@ -407,6 +423,7 @@ curl -i \
 - A `202 Accepted` 2FA challenge response does not set `JSESSIONID`.
 - Successful login requires a verified email address.
 - When 2FA is enabled, backend stores a short-lived, one-time login challenge in Redis. The authenticated session is created only after the follow-up 2FA verification succeeds.
+- Sensitive public auth flows use centralized abuse protection: backend-side Turnstile validation plus Redis-backed request throttling and login-failure throttling.
 - Current cookie behavior is session-based, `HttpOnly`, and `SameSite=Lax`.
 - Default non-local configuration also marks the session cookie `Secure`; the `local` and `test` profiles disable `Secure` so HTTP development and tests still work.
 - CSRF is currently disabled, so no CSRF token is required for login or follow-up API calls.
@@ -595,7 +612,8 @@ No prior session required. This endpoint uses the one-time `loginChallengeId` is
 ```json
 {
   "loginChallengeId": "opaque-login-challenge-id",
-  "code": "123456"
+  "code": "123456",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -619,6 +637,7 @@ No prior session required. This endpoint uses the one-time `loginChallengeId` is
 
 - `400 Bad Request` when the login challenge is invalid, expired, or already consumed.
 - `401 Unauthorized` when the second factor is invalid.
+- `429 Too Many Requests` when 2FA abuse protection throttles repeated attempts.
 
 **Notes**
 
@@ -640,7 +659,8 @@ No prior session required. This endpoint uses the one-time `loginChallengeId` is
 ```json
 {
   "loginChallengeId": "opaque-login-challenge-id",
-  "backupCode": "ABCD-EFGH-JKLM"
+  "backupCode": "ABCD-EFGH-JKLM",
+  "captchaToken": "turnstile-token"
 }
 ```
 
@@ -664,6 +684,7 @@ No prior session required. This endpoint uses the one-time `loginChallengeId` is
 
 - `400 Bad Request` when the login challenge is invalid, expired, or already consumed.
 - `401 Unauthorized` when the backup code is invalid or already used.
+- `429 Too Many Requests` when 2FA abuse protection throttles repeated attempts.
 
 **Notes**
 
@@ -981,14 +1002,17 @@ No prior authentication required.
 **Request Body**
 
 ```json
-{}
+{
+  "captchaToken": "turnstile-token"
+}
 ```
 
 Current request shape:
 
 ```json
 {
-  "usernameOrEmail": "string, optional, reserved for future login hints"
+  "usernameOrEmail": "string, optional, reserved for future login hints",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -1009,14 +1033,15 @@ Current request shape:
 
 **Typical Error Statuses**
 
-- No user-specific error is exposed at the options step.
+- `400 Bad Request` when captcha validation fails.
+- `429 Too Many Requests` when abuse protection throttles the request.
 
 **curl**
 
 ```bash
 curl -i \
   -H 'Content-Type: application/json' \
-  -d '{}' \
+  -d '{"captchaToken":"turnstile-token"}' \
   http://localhost:8080/api/auth/passkey-login/options
 ```
 
@@ -1040,6 +1065,7 @@ No prior authentication required.
 ```json
 {
   "ceremonyId": "authentication-opaque-id",
+  "captchaToken": "turnstile-token",
   "credential": {
     "id": "browser-generated-id",
     "rawId": "base64url-raw-id",
@@ -1058,7 +1084,8 @@ Current request shape:
 ```json
 {
   "ceremonyId": "string, required, must not be blank",
-  "credential": "object, required, browser-generated WebAuthn assertion payload"
+  "credential": "object, required, browser-generated WebAuthn assertion payload",
+  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
 }
 ```
 
@@ -1082,6 +1109,7 @@ Current request shape:
 
 - `400 Bad Request` when the ceremony is missing or expired.
 - `401 Unauthorized` when the assertion is invalid or login is not allowed.
+- `429 Too Many Requests` when abuse protection throttles the request.
 
 **curl**
 
@@ -1089,7 +1117,7 @@ Current request shape:
 curl -i \
   -c cookies.txt \
   -H 'Content-Type: application/json' \
-  -d '{"ceremonyId":"authentication-opaque-id","credential":{"id":"...","rawId":"...","response":{"authenticatorData":"...","clientDataJSON":"...","signature":"..."},"type":"public-key"}}' \
+  -d '{"ceremonyId":"authentication-opaque-id","captchaToken":"turnstile-token","credential":{"id":"...","rawId":"...","response":{"authenticatorData":"...","clientDataJSON":"...","signature":"..."},"type":"public-key"}}' \
   http://localhost:8080/api/auth/passkey-login/verify
 ```
 
