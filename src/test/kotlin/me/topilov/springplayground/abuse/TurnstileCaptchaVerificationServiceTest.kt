@@ -88,6 +88,31 @@ class TurnstileCaptchaVerificationServiceTest {
     }
 
     @Test
+    fun `successful verification tolerates blank action in turnstile response`() {
+        server = HttpServer.create(InetSocketAddress(0), 0).apply {
+            createContext(
+                "/siteverify",
+                JsonHandler("""{"success":true,"action":"","hostname":"auth.example.com","error-codes":[]}"""),
+            )
+            start()
+        }
+
+        val service = TurnstileCaptchaVerificationService(
+            TurnstileProperties(
+                enabled = true,
+                secretKey = "test-secret",
+                siteverifyUrl = "http://127.0.0.1:${server!!.address.port}/siteverify",
+                expectedHostname = "auth.example.com",
+                timeout = Duration.ofSeconds(1),
+            ),
+        )
+
+        val result = service.verify(AbuseProtectionFlow.LOGIN, "valid-token", "127.0.0.1")
+
+        assertThat(result.success).isTrue()
+    }
+
+    @Test
     fun `network failures log root cause details and return internal error`(output: CapturedOutput) {
         val unusedPort = ServerSocket(0).use { it.localPort }
         val service = TurnstileCaptchaVerificationService(
