@@ -6,6 +6,8 @@ import me.topilov.springplayground.auth.passkey.InMemoryPasskeyCeremonyStore
 import me.topilov.springplayground.auth.passkey.TestPasskeyConfiguration
 import me.topilov.springplayground.config.CorsProperties
 import me.topilov.springplayground.mail.MailProperties
+import me.topilov.springplayground.profile.InMemoryPendingEmailChangeTokenStore
+import me.topilov.springplayground.profile.TestPendingEmailChangeConfiguration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
@@ -41,6 +43,7 @@ import javax.crypto.spec.SecretKeySpec
     TestPasswordResetConfiguration::class,
     TestPasskeyConfiguration::class,
     TestTwoFactorConfiguration::class,
+    TestPendingEmailChangeConfiguration::class,
 )
 @Sql(
     statements = [
@@ -48,6 +51,7 @@ import javax.crypto.spec.SecretKeySpec
         "DELETE FROM auth_totp_credential",
         "DELETE FROM auth_passkey_credential",
         "UPDATE auth_user SET webauthn_user_handle = NULL",
+        "UPDATE auth_user SET username = 'demo', email = 'demo@example.com', email_verified = TRUE, enabled = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
         "UPDATE auth_user SET password_hash = '\$2y\$10\$R51kCmlq52SEJcVep3uDtOxTXp0r9jPwGa5oQQvRuMQA84PVwCjrK', updated_at = CURRENT_TIMESTAMP WHERE id = 1",
         "UPDATE user_profile SET display_name = 'Demo User', bio = 'Session-backed example profile', updated_at = CURRENT_TIMESTAMP WHERE user_id = 1",
     ],
@@ -70,6 +74,9 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
     lateinit var inMemoryPasswordResetTokenStore: InMemoryPasswordResetTokenStore
 
     @Autowired
+    lateinit var inMemoryPendingEmailChangeTokenStore: InMemoryPendingEmailChangeTokenStore
+
+    @Autowired
     lateinit var inMemoryPasskeyCeremonyStore: InMemoryPasskeyCeremonyStore
 
     @Autowired
@@ -88,6 +95,7 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
         recordingEmailService.clear()
         inMemoryEmailVerificationTokenStore.clear()
         inMemoryPasswordResetTokenStore.clear()
+        inMemoryPendingEmailChangeTokenStore.clear()
         inMemoryPasskeyCeremonyStore.clear()
         inMemoryTwoFactorLoginChallengeStore.clear()
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
@@ -130,6 +138,10 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
             .andExpect(jsonPath("$.paths['/api/auth/passkey-login/options']").exists())
             .andExpect(jsonPath("$.paths['/api/auth/passkey-login/verify']").exists())
             .andExpect(jsonPath("$.paths['/api/profile/me']").exists())
+            .andExpect(jsonPath("$.paths['/api/profile/me/username']").exists())
+            .andExpect(jsonPath("$.paths['/api/profile/me/password']").exists())
+            .andExpect(jsonPath("$.paths['/api/profile/me/email/change-request']").exists())
+            .andExpect(jsonPath("$.paths['/api/profile/me/email/verify']").exists())
             .andExpect(jsonPath("$.paths['/api/public/ping'].get.responses['400']").doesNotExist())
             .andExpect(jsonPath("$.paths['/api/public/ping'].get.responses['409']").doesNotExist())
             .andExpect(jsonPath("$.paths['/api/profile/me'].get.responses['400']").doesNotExist())
@@ -1021,6 +1033,200 @@ class SecurityEndpointsTest : PostgresIntegrationTestSupport() {
                 .content("""{"token":"invalid-token","newPassword":"new-password-value"}"""),
         )
             .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `authenticated user can change username and use it for subsequent login`() {
+        val session = loginSession("demo", "demo-password")
+        val newUsername = "renamed-demo-${uniqueSuffix()}"
+
+        mockMvc.perform(
+            post("/api/profile/me/username")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"  $newUsername  "}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.username").value(newUsername))
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"$newUsername","password":"demo-password"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.username").value(newUsername))
+    }
+
+    @Test
+    fun `change username rejects already used value`() {
+        val unique = uniqueSuffix()
+        val username = "duplicate-target-$unique"
+        val email = "duplicate-target-$unique@example.com"
+
+        mockMvc.perform(
+            post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username","email":"$email","password":"very-secret-password"}"""),
+        )
+            .andExpect(status().isOk)
+
+        val session = loginSession("demo", "demo-password")
+
+        mockMvc.perform(
+            post("/api/profile/me/username")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username"}"""),
+        )
+            .andExpect(status().isConflict)
+    }
+
+    @Test
+    fun `authenticated user can change password with current password`() {
+        val session = loginSession("demo", "demo-password")
+        val newPassword = "updated-demo-password"
+
+        mockMvc.perform(
+            post("/api/profile/me/password")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"currentPassword":"demo-password","newPassword":"$newPassword"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.changed").value(true))
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"demo-password"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo","password":"$newPassword"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.authenticated").value(true))
+    }
+
+    @Test
+    fun `change password rejects incorrect current password`() {
+        val session = loginSession("demo", "demo-password")
+
+        mockMvc.perform(
+            post("/api/profile/me/password")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"currentPassword":"wrong-password","newPassword":"updated-demo-password"}"""),
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
+    fun `email change request verifies new email invalidates superseded token and updates login identifiers`() {
+        val session = loginSession("demo", "demo-password")
+        val firstEmail = "demo-renamed-${uniqueSuffix()}@example.com"
+        val secondEmail = "demo-renamed-${uniqueSuffix()}@example.com"
+
+        mockMvc.perform(
+            post("/api/profile/me/email/change-request")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"newEmail":"${firstEmail.uppercase()}"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        assertThat(recordingEmailService.sentEmails()).hasSize(1)
+        assertThat(recordingEmailService.sentEmails().single().kind).isEqualTo(RecordingEmailService.SentEmail.Kind.VERIFICATION)
+        assertThat(recordingEmailService.sentEmails().single().recipientEmail).isEqualTo(firstEmail.lowercase())
+        val firstToken = extractToken(recordingEmailService.sentEmails().single())
+        recordingEmailService.clear()
+
+        mockMvc.perform(
+            post("/api/profile/me/email/change-request")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"newEmail":"$secondEmail"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.accepted").value(true))
+
+        assertThat(recordingEmailService.sentEmails()).hasSize(1)
+        assertThat(recordingEmailService.sentEmails().single().recipientEmail).isEqualTo(secondEmail)
+        val secondToken = extractToken(recordingEmailService.sentEmails().single())
+        assertThat(secondToken).isNotEqualTo(firstToken)
+
+        mockMvc.perform(
+            post("/api/profile/me/email/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"token":"$firstToken"}"""),
+        )
+            .andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            post("/api/profile/me/email/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"token":"$secondToken"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.email").value(secondEmail))
+
+        mockMvc.perform(
+            post("/api/profile/me/email/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"token":"$secondToken"}"""),
+        )
+            .andExpect(status().isBadRequest)
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"demo@example.com","password":"demo-password"}"""),
+        )
+            .andExpect(status().isUnauthorized)
+
+        mockMvc.perform(
+            post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usernameOrEmail":"$secondEmail","password":"demo-password"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.email").value(secondEmail))
+    }
+
+    @Test
+    fun `email change request rejects already used email`() {
+        val unique = uniqueSuffix()
+        val username = "email-duplicate-$unique"
+        val email = "email-duplicate-$unique@example.com"
+
+        mockMvc.perform(
+            post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$username","email":"$email","password":"very-secret-password"}"""),
+        )
+            .andExpect(status().isOk)
+
+        val session = loginSession("demo", "demo-password")
+
+        mockMvc.perform(
+            post("/api/profile/me/email/change-request")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"newEmail":"${email.uppercase()}"}"""),
+        )
+            .andExpect(status().isConflict)
     }
 
     private fun userExists(email: String): Boolean = jdbcTemplate.queryForObject(
