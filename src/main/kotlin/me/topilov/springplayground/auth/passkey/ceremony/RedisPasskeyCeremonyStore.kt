@@ -1,6 +1,6 @@
 package me.topilov.springplayground.auth.passkey.ceremony
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import me.topilov.springplayground.auth.passkey.config.PasskeyProperties
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Component
@@ -11,10 +11,10 @@ import java.util.Base64
 @Component
 class RedisPasskeyCeremonyStore(
     private val redisTemplate: StringRedisTemplate,
+    private val objectMapper: ObjectMapper,
     passkeyProperties: PasskeyProperties,
 ) : PasskeyCeremonyStore {
     private val ttl: Duration = passkeyProperties.ceremonyTtl
-    private val objectMapper = jacksonObjectMapper()
 
     override fun createCeremonyId(): String {
         val bytes = ByteArray(32)

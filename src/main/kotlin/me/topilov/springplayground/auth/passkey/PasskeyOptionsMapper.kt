@@ -1,6 +1,7 @@
 package me.topilov.springplayground.auth.passkey
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import me.topilov.springplayground.auth.passkey.dto.PasskeyAuthenticationPublicKeyOptionsDto
 import me.topilov.springplayground.auth.passkey.dto.PasskeyCredentialDescriptorDto
 import me.topilov.springplayground.auth.passkey.dto.PasskeyPubKeyCredParamDto
@@ -10,9 +11,9 @@ import me.topilov.springplayground.auth.passkey.dto.PasskeyUserIdentityDto
 import org.springframework.stereotype.Component
 
 @Component
-class PasskeyOptionsMapper {
-    private val objectMapper = jacksonObjectMapper()
-
+class PasskeyOptionsMapper(
+    private val objectMapper: ObjectMapper,
+) {
     fun registrationOptionsFromCredentialsCreateJson(json: String): PasskeyRegistrationPublicKeyOptionsDto {
         val node = objectMapper.readTree(json).get("publicKey")
             ?: error("Missing publicKey in WebAuthn registration options")
@@ -58,31 +59,31 @@ class PasskeyOptionsMapper {
         )
     }
 
-    private fun descriptorFrom(node: com.fasterxml.jackson.databind.JsonNode): PasskeyCredentialDescriptorDto =
+    private fun descriptorFrom(node: JsonNode): PasskeyCredentialDescriptorDto =
         PasskeyCredentialDescriptorDto(
             type = node.requiredText("type"),
             id = node.requiredText("id"),
             transports = node.listOfStrings("transports"),
         )
 
-    private fun com.fasterxml.jackson.databind.JsonNode.requiredText(name: String): String =
+    private fun JsonNode.requiredText(name: String): String =
         required(name).asText()
 
-    private fun com.fasterxml.jackson.databind.JsonNode.textOrNull(name: String): String? =
+    private fun JsonNode.textOrNull(name: String): String? =
         get(name)?.takeUnless { it.isNull }?.asText()
 
-    private fun com.fasterxml.jackson.databind.JsonNode.textOrLong(name: String): Long? =
+    private fun JsonNode.textOrLong(name: String): Long? =
         get(name)?.takeUnless { it.isNull }?.asLong()
 
-    private fun com.fasterxml.jackson.databind.JsonNode.listOrEmpty(name: String): List<com.fasterxml.jackson.databind.JsonNode> =
+    private fun JsonNode.listOrEmpty(name: String): List<JsonNode> =
         get(name)?.takeIf { it.isArray }?.toList().orEmpty()
 
-    private fun com.fasterxml.jackson.databind.JsonNode.listOfStrings(name: String): List<String> =
+    private fun JsonNode.listOfStrings(name: String): List<String> =
         listOrEmpty(name).map { it.asText() }
 
-    private fun com.fasterxml.jackson.databind.JsonNode.objectOrNull(name: String): Map<String, Any?>? =
+    private fun JsonNode.objectOrNull(name: String): Map<String, Any?>? =
         get(name)?.takeIf { it.isObject }?.let { objectMapper.convertValue(it, Map::class.java) as Map<String, Any?> }
 
-    private fun com.fasterxml.jackson.databind.JsonNode.objectOrEmpty(name: String): Map<String, Any?> =
+    private fun JsonNode.objectOrEmpty(name: String): Map<String, Any?> =
         objectOrNull(name).orEmpty()
 }

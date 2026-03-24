@@ -15,15 +15,3 @@ interface PasskeyCeremonyStore {
 
     fun invalidateAuthentication(ceremonyId: String)
 }
-
-data class RegistrationPasskeyCeremony(
-    val ceremonyId: String,
-    val userId: Long,
-    val requestJson: String,
-    val nickname: String?,
-)
-
-data class AuthenticationPasskeyCeremony(
-    val ceremonyId: String,
-    val requestJson: String,
-)

@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.validation.Valid
 import me.topilov.springplayground.auth.dto.LoginResponse
+import me.topilov.springplayground.auth.application.PasskeyLoginApplicationService
 import me.topilov.springplayground.auth.passkey.dto.PasskeyLoginOptionsRequest
 import me.topilov.springplayground.auth.passkey.dto.PasskeyLoginOptionsResponse
 import me.topilov.springplayground.auth.passkey.dto.PasskeyLoginVerifyRequest
@@ -12,7 +13,6 @@ import me.topilov.springplayground.auth.passkey.dto.PasskeyRegistrationOptionsRe
 import me.topilov.springplayground.auth.passkey.dto.PasskeyRegistrationVerifyRequest
 import me.topilov.springplayground.auth.passkey.dto.PasskeySummaryResponse
 import me.topilov.springplayground.auth.passkey.dto.RenamePasskeyRequest
-import me.topilov.springplayground.auth.passkey.service.PasskeyAuthenticationService
 import me.topilov.springplayground.auth.passkey.service.PasskeyManagementService
 import me.topilov.springplayground.auth.passkey.service.PasskeyRegistrationService
 import me.topilov.springplayground.auth.security.AppUserPrincipal
@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController
 class PasskeyController(
     private val passkeyRegistrationService: PasskeyRegistrationService,
     private val passkeyManagementService: PasskeyManagementService,
-    private val passkeyAuthenticationService: PasskeyAuthenticationService,
+    private val passkeyLoginApplicationService: PasskeyLoginApplicationService,
 ) {
     @PostMapping("/passkeys/register/options")
     fun startRegistration(
@@ -70,12 +70,12 @@ class PasskeyController(
     fun startPasskeyLogin(
         @Valid @RequestBody request: PasskeyLoginOptionsRequest,
         servletRequest: HttpServletRequest,
-    ): PasskeyLoginOptionsResponse = passkeyAuthenticationService.startAuthentication(request, servletRequest)
+    ): PasskeyLoginOptionsResponse = passkeyLoginApplicationService.startAuthentication(request, servletRequest)
 
     @PostMapping("/passkey-login/verify")
     fun finishPasskeyLogin(
         @Valid @RequestBody request: PasskeyLoginVerifyRequest,
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
-    ): LoginResponse = passkeyAuthenticationService.finishAuthentication(request, servletRequest, servletResponse)
+    ): LoginResponse = passkeyLoginApplicationService.finishAuthentication(request, servletRequest, servletResponse)
 }

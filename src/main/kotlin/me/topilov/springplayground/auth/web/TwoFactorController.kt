@@ -12,8 +12,8 @@ import me.topilov.springplayground.auth.dto.TwoFactorSetupConfirmRequest
 import me.topilov.springplayground.auth.dto.TwoFactorSetupConfirmResponse
 import me.topilov.springplayground.auth.dto.TwoFactorSetupStartResponse
 import me.topilov.springplayground.auth.dto.TwoFactorStatusResponse
+import me.topilov.springplayground.auth.application.TwoFactorLoginApplicationService
 import me.topilov.springplayground.auth.security.AppUserPrincipal
-import me.topilov.springplayground.auth.service.TwoFactorLoginService
 import me.topilov.springplayground.auth.service.TwoFactorManagementService
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/auth/2fa")
 class TwoFactorController(
     private val managementService: TwoFactorManagementService,
-    private val loginService: TwoFactorLoginService,
+    private val loginApplicationService: TwoFactorLoginApplicationService,
 ) {
     @GetMapping("/status")
     fun status(@AuthenticationPrincipal principal: AppUserPrincipal): TwoFactorStatusResponse =
@@ -55,12 +55,12 @@ class TwoFactorController(
         @Valid @RequestBody request: TwoFactorLoginVerifyRequest,
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
-    ): LoginResponse = loginService.completeTotpLogin(request, servletRequest, servletResponse)
+    ): LoginResponse = loginApplicationService.completeTotpLogin(request, servletRequest, servletResponse)
 
     @PostMapping("/login/verify-backup-code")
     fun finishLoginWithBackupCode(
         @Valid @RequestBody request: TwoFactorBackupCodeLoginVerifyRequest,
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
-    ): LoginResponse = loginService.completeBackupCodeLogin(request, servletRequest, servletResponse)
+    ): LoginResponse = loginApplicationService.completeBackupCodeLogin(request, servletRequest, servletResponse)
 }

@@ -20,14 +20,17 @@ import me.topilov.springplayground.auth.dto.ResendVerificationEmailRequest
 import me.topilov.springplayground.auth.dto.ResendVerificationEmailResponse
 import me.topilov.springplayground.auth.dto.ResetPasswordRequest
 import me.topilov.springplayground.auth.dto.ResetPasswordResponse
+import me.topilov.springplayground.auth.dto.TwoFactorLoginChallengeResponse
 import me.topilov.springplayground.auth.dto.VerifyEmailRequest
 import me.topilov.springplayground.auth.dto.VerifyEmailResponse
-import me.topilov.springplayground.auth.dto.TwoFactorLoginChallengeResponse
-import me.topilov.springplayground.auth.service.AuthService
+import me.topilov.springplayground.auth.application.EmailVerificationService
+import me.topilov.springplayground.auth.application.PasswordResetService
+import me.topilov.springplayground.auth.application.RegistrationService
+import me.topilov.springplayground.auth.application.SessionAuthenticationService
 import me.topilov.springplayground.auth.service.SessionEstablishedLoginResult
 import me.topilov.springplayground.auth.service.TwoFactorRequiredLoginResult
-import me.topilov.springplayground.shared.dto.ApiErrorResponse
-import me.topilov.springplayground.shared.dto.SimpleErrorResponse
+import me.topilov.springplayground.common.web.ApiErrorResponse
+import me.topilov.springplayground.common.web.SimpleErrorResponse
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.Authentication
@@ -40,7 +43,10 @@ import org.springframework.web.bind.annotation.RequestBody as SpringRequestBody
 @RequestMapping("/api/auth")
 @Tag(name = "Auth", description = "Session-based authentication endpoints.")
 class AuthController(
-    private val authService: AuthService,
+    private val registrationService: RegistrationService,
+    private val emailVerificationService: EmailVerificationService,
+    private val passwordResetService: PasswordResetService,
+    private val sessionAuthenticationService: SessionAuthenticationService,
 ) {
     @Operation(
         summary = "Register",
@@ -85,7 +91,7 @@ class AuthController(
     fun register(
         @Valid @SpringRequestBody request: RegisterRequest,
         servletRequest: HttpServletRequest,
-    ): RegisterResponse = authService.register(request, servletRequest)
+    ): RegisterResponse = registrationService.register(request, servletRequest)
 
     @Operation(
         summary = "Verify email",
@@ -110,7 +116,7 @@ class AuthController(
     @PostMapping("/verify-email")
     fun verifyEmail(
         @Valid @SpringRequestBody request: VerifyEmailRequest,
-    ): VerifyEmailResponse = authService.verifyEmail(request)
+    ): VerifyEmailResponse = emailVerificationService.verifyEmail(request)
 
     @Operation(
         summary = "Resend verification email",
@@ -135,7 +141,7 @@ class AuthController(
     fun resendVerificationEmail(
         @Valid @SpringRequestBody request: ResendVerificationEmailRequest,
         servletRequest: HttpServletRequest,
-    ): ResendVerificationEmailResponse = authService.resendVerificationEmail(request, servletRequest)
+    ): ResendVerificationEmailResponse = emailVerificationService.resendVerificationEmail(request, servletRequest)
 
     @Operation(
         summary = "Forgot password",
@@ -170,7 +176,7 @@ class AuthController(
     fun forgotPassword(
         @Valid @SpringRequestBody request: ForgotPasswordRequest,
         servletRequest: HttpServletRequest,
-    ): ForgotPasswordResponse = authService.forgotPassword(request, servletRequest)
+    ): ForgotPasswordResponse = passwordResetService.forgotPassword(request, servletRequest)
 
     @Operation(
         summary = "Reset password",
@@ -205,7 +211,7 @@ class AuthController(
     fun resetPassword(
         @Valid @SpringRequestBody request: ResetPasswordRequest,
         servletRequest: HttpServletRequest,
-    ): ResetPasswordResponse = authService.resetPassword(request, servletRequest)
+    ): ResetPasswordResponse = passwordResetService.resetPassword(request, servletRequest)
 
     @Operation(
         summary = "Login",
@@ -268,7 +274,7 @@ class AuthController(
         @Valid @SpringRequestBody request: LoginRequest,
         servletRequest: HttpServletRequest,
         servletResponse: HttpServletResponse,
-    ): ResponseEntity<Any> = when (val result = authService.login(request, servletRequest, servletResponse)) {
+    ): ResponseEntity<Any> = when (val result = sessionAuthenticationService.login(request, servletRequest, servletResponse)) {
         is SessionEstablishedLoginResult -> ResponseEntity.ok(result.response)
         is TwoFactorRequiredLoginResult -> ResponseEntity.status(HttpStatus.ACCEPTED).body(result.response)
     }
@@ -288,7 +294,7 @@ class AuthController(
         servletResponse: HttpServletResponse,
         authentication: Authentication?,
     ): ResponseEntity<Void> {
-        authService.logout(servletRequest, servletResponse, authentication)
+        sessionAuthenticationService.logout(servletRequest, servletResponse, authentication)
         return ResponseEntity.noContent().build()
     }
 }

@@ -1,13 +1,7 @@
 package me.topilov.springplayground.auth.service
 
-import jakarta.servlet.http.HttpServletRequest
-import jakarta.servlet.http.HttpServletResponse
-import me.topilov.springplayground.abuse.AbuseProtectionFlow
-import me.topilov.springplayground.abuse.AbuseProtectionService
-import me.topilov.springplayground.auth.dto.LoginResponse
-import me.topilov.springplayground.auth.dto.TwoFactorBackupCodeLoginVerifyRequest
+import me.topilov.springplayground.auth.domain.AuthUser
 import me.topilov.springplayground.auth.dto.TwoFactorLoginChallengeResponse
-import me.topilov.springplayground.auth.dto.TwoFactorLoginVerifyRequest
 import me.topilov.springplayground.auth.exception.TwoFactorAuthenticationFailedException
 import me.topilov.springplayground.auth.exception.TwoFactorLoginChallengeNotFoundException
 import me.topilov.springplayground.auth.repository.AuthTotpCredentialRepository
@@ -25,9 +19,7 @@ class TwoFactorLoginService(
     private val secretCrypto: TwoFactorSecretCrypto,
     private val totpCodeService: TotpCodeService,
     private val backupCodeService: BackupCodeService,
-    private val sessionLoginService: SessionLoginService,
     private val twoFactorProperties: TwoFactorProperties,
-    private val abuseProtectionService: AbuseProtectionService,
 ) {
     @Transactional(readOnly = true)
     fun isEnabledForUser(userId: Long): Boolean = credentialRepository.existsByUserIdAndEnabledAtIsNotNull(userId)
@@ -51,70 +43,30 @@ class TwoFactorLoginService(
     }
 
     @Transactional
-    fun completeTotpLogin(
-        request: TwoFactorLoginVerifyRequest,
-        servletRequest: HttpServletRequest,
-        servletResponse: HttpServletResponse,
-    ): LoginResponse {
-        val challengePreview = challengeStore.find(request.loginChallengeId)
-            ?: throw TwoFactorLoginChallengeNotFoundException()
-        val identifier = challengePreview.userId.toString()
-        abuseProtectionService.checkFailureThrottle(AbuseProtectionFlow.TWO_FACTOR_LOGIN, servletRequest, identifier)
-        abuseProtectionService.protect(
-            AbuseProtectionFlow.TWO_FACTOR_LOGIN,
-            abuseProtectionService.buildContext(request.captchaToken, servletRequest, identifier),
-        )
+    fun previewChallenge(loginChallengeId: String): StoredTwoFactorLoginChallenge =
+        challengeStore.find(loginChallengeId) ?: throw TwoFactorLoginChallengeNotFoundException()
 
-        val challenge = consumeChallenge(request.loginChallengeId)
+    @Transactional
+    fun completeTotpChallenge(loginChallengeId: String, code: String): AuthUser {
+        val challenge = consumeChallenge(loginChallengeId)
         val credential = credentialRepository.findByUserIdAndEnabledAtIsNotNull(challenge.userId)
             .orElseThrow(::TwoFactorAuthenticationFailedException)
         val secret = secretCrypto.decrypt(credential.secretCiphertext)
-        if (!totpCodeService.verify(secret, request.code)) {
-            abuseProtectionService.recordFailure(AbuseProtectionFlow.TWO_FACTOR_LOGIN, servletRequest, identifier)
+        if (!totpCodeService.verify(secret, code)) {
             throw TwoFactorAuthenticationFailedException()
         }
-        abuseProtectionService.clearFailures(AbuseProtectionFlow.TWO_FACTOR_LOGIN, servletRequest, identifier)
-
-        val user = authUserRepository.findById(challenge.userId)
-            .orElseThrow(::TwoFactorAuthenticationFailedException)
-        return sessionLoginService.login(
-            authentication = sessionLoginService.createAuthentication(user),
-            servletRequest = servletRequest,
-            servletResponse = servletResponse,
-        )
+        return authUserRepository.findById(challenge.userId).orElseThrow(::TwoFactorAuthenticationFailedException)
     }
 
     @Transactional
-    fun completeBackupCodeLogin(
-        request: TwoFactorBackupCodeLoginVerifyRequest,
-        servletRequest: HttpServletRequest,
-        servletResponse: HttpServletResponse,
-    ): LoginResponse {
-        val challengePreview = challengeStore.find(request.loginChallengeId)
-            ?: throw TwoFactorLoginChallengeNotFoundException()
-        val identifier = challengePreview.userId.toString()
-        abuseProtectionService.checkFailureThrottle(AbuseProtectionFlow.TWO_FACTOR_LOGIN, servletRequest, identifier)
-        abuseProtectionService.protect(
-            AbuseProtectionFlow.TWO_FACTOR_LOGIN,
-            abuseProtectionService.buildContext(request.captchaToken, servletRequest, identifier),
-        )
-
-        val challenge = consumeChallenge(request.loginChallengeId)
+    fun completeBackupCodeChallenge(loginChallengeId: String, backupCode: String): AuthUser {
+        val challenge = consumeChallenge(loginChallengeId)
         val credential = credentialRepository.findByUserIdAndEnabledAtIsNotNull(challenge.userId)
             .orElseThrow(::TwoFactorAuthenticationFailedException)
-        if (!backupCodeService.consumeCode(credential, request.backupCode)) {
-            abuseProtectionService.recordFailure(AbuseProtectionFlow.TWO_FACTOR_LOGIN, servletRequest, identifier)
+        if (!backupCodeService.consumeCode(credential, backupCode)) {
             throw TwoFactorAuthenticationFailedException()
         }
-        abuseProtectionService.clearFailures(AbuseProtectionFlow.TWO_FACTOR_LOGIN, servletRequest, identifier)
-
-        val user = authUserRepository.findById(challenge.userId)
-            .orElseThrow(::TwoFactorAuthenticationFailedException)
-        return sessionLoginService.login(
-            authentication = sessionLoginService.createAuthentication(user),
-            servletRequest = servletRequest,
-            servletResponse = servletResponse,
-        )
+        return authUserRepository.findById(challenge.userId).orElseThrow(::TwoFactorAuthenticationFailedException)
     }
 
     private fun consumeChallenge(loginChallengeId: String): StoredTwoFactorLoginChallenge =

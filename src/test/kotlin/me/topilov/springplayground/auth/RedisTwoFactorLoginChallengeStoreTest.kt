@@ -3,6 +3,7 @@ package me.topilov.springplayground.auth
 import me.topilov.springplayground.auth.service.RedisTwoFactorLoginChallengeStore
 import me.topilov.springplayground.auth.service.StoredTwoFactorLoginChallenge
 import me.topilov.springplayground.config.TwoFactorProperties
+import me.topilov.springplayground.support.TestObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
@@ -31,6 +32,7 @@ class RedisTwoFactorLoginChallengeStoreTest {
         store = RedisTwoFactorLoginChallengeStore(
             redisTemplate = redisTemplate,
             twoFactorProperties = TwoFactorProperties(loginChallengeTtl = Duration.ofMinutes(5)),
+            objectMapper = TestObjectMapper.instance,
         )
     }
 

@@ -1,6 +1,6 @@
 package me.topilov.springplayground.auth.passkey.service
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import me.topilov.springplayground.auth.passkey.PasskeyOptionsMapper
 import me.topilov.springplayground.auth.domain.AuthUser
 import me.topilov.springplayground.auth.passkey.ceremony.PasskeyCeremonyStore
@@ -29,9 +29,8 @@ class PasskeyRegistrationService(
     private val passkeyWebAuthnService: PasskeyWebAuthnService,
     private val passkeyManagementService: PasskeyManagementService,
     private val passkeyOptionsMapper: PasskeyOptionsMapper,
+    private val objectMapper: ObjectMapper,
 ) {
-    private val objectMapper = jacksonObjectMapper()
-
     @Transactional
     fun startRegistration(userId: Long, request: PasskeyRegistrationOptionsRequest): PasskeyRegistrationOptionsResponse {
         val user = authUserRepository.findById(userId).orElseThrow(::InvalidPasskeyCeremonyException)

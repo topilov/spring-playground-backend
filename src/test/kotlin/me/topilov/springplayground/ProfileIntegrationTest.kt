@@ -1,6 +1,6 @@
 package me.topilov.springplayground
 
-import me.topilov.springplayground.abuse.TestAbuseProtectionConfiguration
+import me.topilov.springplayground.protection.TestProtectionConfiguration
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -21,7 +21,7 @@ import org.springframework.mock.web.MockHttpSession
 import org.springframework.web.context.WebApplicationContext
 
 @SpringBootTest
-@Import(TestAbuseProtectionConfiguration::class)
+@Import(TestProtectionConfiguration::class)
 @Sql(
     statements = [
         "UPDATE auth_user SET username = 'demo', email = 'demo@example.com', email_verified = TRUE, enabled = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = 1",

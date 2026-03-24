@@ -1,6 +1,6 @@
 package me.topilov.springplayground.auth.service
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.databind.ObjectMapper
 import me.topilov.springplayground.config.TwoFactorProperties
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.stereotype.Component
@@ -11,9 +11,8 @@ import java.util.Base64
 class RedisTwoFactorLoginChallengeStore(
     private val redisTemplate: StringRedisTemplate,
     private val twoFactorProperties: TwoFactorProperties,
+    private val objectMapper: ObjectMapper,
 ) : TwoFactorLoginChallengeStore {
-    private val objectMapper = jacksonObjectMapper().findAndRegisterModules()
-
     override fun createChallengeId(): String {
         val bytes = ByteArray(32)
         secureRandom.nextBytes(bytes)

@@ -1,10 +1,11 @@
 package me.topilov.springplayground.auth.passkey
 
+import me.topilov.springplayground.support.TestObjectMapper
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 
 class PasskeyOptionsMapperTest {
-    private val mapper = PasskeyOptionsMapper()
+    private val mapper = PasskeyOptionsMapper(TestObjectMapper.instance)
 
     @Test
     fun `registration options unwrap publicKey object and keep binary members as base64url strings`() {
