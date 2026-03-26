@@ -27,6 +27,7 @@ internal class DefaultTdlightSessionFactory(
         sessionDatabaseKey: String,
     ): TdlightSession = SimpleClientTdlightSession(
         clientAndInteraction = buildClient(phoneNumber, sessionDirectoryKey),
+        timeout = properties.clientTimeout,
     )
 
     private fun buildClient(
@@ -67,6 +68,7 @@ internal class DefaultTdlightSessionFactory(
 
 private class SimpleClientTdlightSession(
     clientAndInteraction: ClientAndInteraction,
+    private val timeout: Duration,
 ) : TdlightSession {
     private val client = clientAndInteraction.client
     private val interaction = clientAndInteraction.interaction
@@ -144,10 +146,6 @@ private class SimpleClientTdlightSession(
         val combined = CompletableFuture.anyOf(*futures)
         @Suppress("UNCHECKED_CAST")
         return combined.get(timeout.toMillis(), TimeUnit.MILLISECONDS) as T
-    }
-
-    companion object {
-        private val timeout: Duration = Duration.ofSeconds(30)
     }
 }
 

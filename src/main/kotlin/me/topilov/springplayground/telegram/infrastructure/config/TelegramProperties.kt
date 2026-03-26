@@ -8,6 +8,7 @@ data class TelegramProperties(
     var enabled: Boolean = false,
     var sessionRoot: String = "telegram-sessions",
     var pendingAuthTtl: Duration = Duration.ofMinutes(10),
+    var clientTimeout: Duration = Duration.ofSeconds(5),
     var automationTokenBytes: Int = 32,
     var encryptionKeyBase64: String = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=",
     var apiId: Int = 0,
