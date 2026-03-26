@@ -28,9 +28,12 @@ kotlin {
 repositories {
     mavenCentral()
     maven("https://repo.spring.io/milestone")
+    maven("https://mvn.mchv.eu/repository/mchv/")
 }
 
 dependencies {
+    implementation(platform("it.tdlight:tdlight-java-bom:3.4.4+td.1.8.52"))
+    implementation("it.tdlight:tdlight-java")
     implementation("com.warrenstrange:googleauth:1.5.0")
     implementation("com.yubico:webauthn-server-core:2.8.1")
     implementation("org.springframework.boot:spring-boot-starter-actuator")

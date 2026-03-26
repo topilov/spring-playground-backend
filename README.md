@@ -15,6 +15,7 @@ Template Spring Boot project on Kotlin with session-based security, PostgreSQL, 
 - Spring Mail
 - Thymeleaf email templates
 - Yubico `java-webauthn-server`
+- TDLight Java
 
 ## Prerequisites
 
@@ -184,6 +185,13 @@ Available properties:
 - `APP_TWO_FACTOR_LOGIN_CHALLENGE_TTL`
 - `APP_TWO_FACTOR_ENCRYPTION_KEY_BASE64`
 - `APP_TWO_FACTOR_BACKUP_CODE_COUNT`
+- `APP_TELEGRAM_ENABLED`
+- `APP_TELEGRAM_API_ID`
+- `APP_TELEGRAM_API_HASH`
+- `APP_TELEGRAM_SESSION_ROOT`
+- `APP_TELEGRAM_PENDING_AUTH_TTL`
+- `APP_TELEGRAM_AUTOMATION_TOKEN_BYTES`
+- `APP_TELEGRAM_ENCRYPTION_KEY_BASE64`
 - `MAIL_HOST`
 - `MAIL_PORT`
 - `MAIL_USERNAME`
@@ -199,6 +207,27 @@ Available properties:
 - `SESSION_COOKIE_SAME_SITE`
 
 `APP_TWO_FACTOR_ENCRYPTION_KEY_BASE64` should be set to a strong Base64-encoded AES key outside local and test environments because stored TOTP secrets are encrypted at rest with it.
+
+`APP_TELEGRAM_ENCRYPTION_KEY_BASE64` should also be set to a strong Base64-encoded AES key outside local and test environments because the backend encrypts the per-user TDLib database key before storing it.
+
+### Telegram focus sync
+
+The backend also includes a Telegram focus-sync slice under the dedicated top-level `telegram` domain.
+
+Capabilities:
+
+- authenticated Telegram connect flow at `/api/profile/me/telegram/connect/*`
+- user-managed default no-focus emoji status and per-focus-mode emoji mappings at `/api/profile/me/telegram/focus-settings`
+- one personal automation token per user at `/api/profile/me/telegram/automation-token*`
+- minimal iOS Shortcut endpoint at `/api/telegram/focus-updates`
+
+Runtime notes:
+
+- the backend stores durable Telegram account and focus state in PostgreSQL
+- pending Telegram auth state is stored in Redis
+- the TDLib session directory must live on persistent storage
+- TDLight Java requires platform-specific native runtime libraries; those are deployment-specific and must be supplied for the target OS/architecture
+- the checked-in TDLight gateway layer is present, but end-to-end runtime verification was not possible in this session because the local environment did not provide the Telegram runtime setup needed to exercise it directly
 
 Example local setup for a frontend reset link:
 
