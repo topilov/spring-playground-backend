@@ -109,7 +109,7 @@ class TelegramController(
         focusSettingsService.updateSettings(
             userId = principal.id,
             defaultEmojiStatusDocumentId = request.defaultEmojiStatusDocumentId,
-            mappings = request.mappings.entries.associate { TelegramFocusMode.fromValue(it.key) to it.value },
+            mappings = request.mappings.orEmpty().entries.associate { TelegramFocusMode.fromValue(it.key) to it.value },
         )
         return queryService.getSettings(principal.id)
     }

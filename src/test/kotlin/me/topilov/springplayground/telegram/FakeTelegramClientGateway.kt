@@ -43,7 +43,7 @@ class FakeTelegramClientGateway : TelegramClientGateway {
                     username = "telegram-$userId",
                     displayName = "Telegram User $userId",
                     premium = true,
-                    currentEmojiStatusDocumentId = null,
+                    currentEmojiStatusDocumentId = emojiStatuses[userId],
                 ),
             )
         }
@@ -60,7 +60,7 @@ class FakeTelegramClientGateway : TelegramClientGateway {
         username = "telegram-$userId",
         displayName = "Telegram User $userId",
         premium = true,
-        currentEmojiStatusDocumentId = null,
+        currentEmojiStatusDocumentId = emojiStatuses[userId],
     )
 
     override fun updateEmojiStatus(

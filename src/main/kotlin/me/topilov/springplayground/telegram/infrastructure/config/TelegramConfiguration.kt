@@ -3,6 +3,7 @@ package me.topilov.springplayground.telegram.infrastructure.config
 import me.topilov.springplayground.telegram.domain.TelegramEmojiMappingResolver
 import me.topilov.springplayground.telegram.infrastructure.tdlight.TdlightTelegramClientGateway
 import me.topilov.springplayground.telegram.infrastructure.tdlight.TelegramClientGateway
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -19,6 +20,7 @@ class TelegramConfiguration {
         TelegramEmojiMappingResolver(properties.defaultFocusMappings.toMap())
 
     @Bean
+    @ConditionalOnMissingBean(TelegramClientGateway::class)
     fun telegramClientGateway(properties: TelegramProperties): TelegramClientGateway =
         TdlightTelegramClientGateway(properties)
 }

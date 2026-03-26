@@ -6,7 +6,7 @@ import me.topilov.springplayground.telegram.domain.TelegramFocusMode
 
 data class TelegramFocusSettingsRequest(
     val defaultEmojiStatusDocumentId: String? = null,
-    val mappings: Map<String, String?> = emptyMap(),
+    val mappings: Map<String, String?>? = emptyMap(),
 )
 
 data class TelegramFocusUpdateRequest(
