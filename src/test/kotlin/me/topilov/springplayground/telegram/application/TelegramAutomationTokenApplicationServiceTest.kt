@@ -3,6 +3,7 @@ package me.topilov.springplayground.telegram.application
 import me.topilov.springplayground.telegram.domain.TelegramAccountConnection
 import me.topilov.springplayground.telegram.domain.TelegramAutomationToken
 import me.topilov.springplayground.telegram.domain.TelegramConnectionStatus
+import me.topilov.springplayground.telegram.infrastructure.config.TelegramProperties
 import me.topilov.springplayground.telegram.infrastructure.repository.TelegramAccountConnectionRepository
 import me.topilov.springplayground.telegram.infrastructure.repository.TelegramAutomationTokenRepository
 import org.assertj.core.api.Assertions.assertThat
@@ -20,10 +21,12 @@ class TelegramAutomationTokenApplicationServiceTest {
     private val accountConnectionRepository = mock(TelegramAccountConnectionRepository::class.java)
     private val automationTokenRepository = mock(TelegramAutomationTokenRepository::class.java)
     private val clock = Clock.fixed(Instant.parse("2026-03-26T10:15:30Z"), ZoneOffset.UTC)
+    private val telegramProperties = TelegramProperties(automationTokenBytes = 32)
 
     private val service = TelegramAutomationTokenApplicationService(
         accountConnectionRepository = accountConnectionRepository,
         automationTokenRepository = automationTokenRepository,
+        telegramProperties = telegramProperties,
         clock = clock,
     )
 
