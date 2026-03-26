@@ -15,7 +15,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.time.Clock
 import java.time.Instant
-import java.util.Base64
+import java.util.*
 
 data class TelegramRawAutomationToken(
     val token: String,
@@ -29,16 +29,6 @@ class TelegramAutomationTokenApplicationService(
     private val telegramProperties: TelegramProperties,
     private val clock: Clock,
 ) {
-    constructor(
-        accountConnectionRepository: TelegramAccountConnectionRepository,
-        automationTokenRepository: TelegramAutomationTokenRepository,
-        clock: Clock,
-    ) : this(
-        accountConnectionRepository = accountConnectionRepository,
-        automationTokenRepository = automationTokenRepository,
-        telegramProperties = TelegramProperties(),
-        clock = clock,
-    )
 
     @Transactional
     fun createToken(userId: Long): TelegramRawAutomationToken {
