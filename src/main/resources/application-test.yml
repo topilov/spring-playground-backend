@@ -105,9 +105,3 @@ app:
     pending-auth-ttl: PT10M
     automation-token-bytes: 32
     encryption-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
-    default-focus-mappings:
-      personal: 5368324170671202286
-      airplane: 5368324170671202290
-      do-not-disturb: 5368324170671202295
-      reduce-interruptions: 5368324170671202300
-      sleep: 5368324170671202305

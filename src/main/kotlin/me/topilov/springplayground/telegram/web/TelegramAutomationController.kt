@@ -30,7 +30,7 @@ class TelegramAutomationController(
         )
         return TelegramFocusUpdateResponse(
             applied = true,
-            effectiveFocusMode = result.effectiveFocusMode,
+            activeFocusMode = result.activeFocusMode,
             appliedEmojiStatusDocumentId = result.appliedEmojiStatusDocumentId,
         )
     }
