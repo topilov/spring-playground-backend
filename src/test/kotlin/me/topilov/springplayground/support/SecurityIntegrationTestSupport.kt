@@ -20,6 +20,9 @@ import me.topilov.springplayground.profile.TestPendingEmailChangeConfiguration
 import me.topilov.springplayground.protection.InMemoryCooldownStore
 import me.topilov.springplayground.protection.InMemoryRateLimitStore
 import me.topilov.springplayground.protection.TestProtectionConfiguration
+import me.topilov.springplayground.telegram.FakeTelegramClientGateway
+import me.topilov.springplayground.telegram.InMemoryTelegramPendingAuthStore
+import me.topilov.springplayground.telegram.TestTelegramConfiguration
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
@@ -50,12 +53,17 @@ import javax.crypto.spec.SecretKeySpec
     TestTwoFactorConfiguration::class,
     TestPendingEmailChangeConfiguration::class,
     TestProtectionConfiguration::class,
+    TestTelegramConfiguration::class,
 )
 @Sql(
     statements = [
         "DELETE FROM auth_totp_backup_code",
         "DELETE FROM auth_totp_credential",
         "DELETE FROM auth_passkey_credential",
+        "DELETE FROM telegram_focus_state",
+        "DELETE FROM telegram_focus_mapping",
+        "DELETE FROM telegram_automation_token",
+        "DELETE FROM telegram_account_connection",
         "UPDATE auth_user SET webauthn_user_handle = NULL",
         "UPDATE auth_user SET username = 'demo', email = 'demo@example.com', email_verified = TRUE, enabled = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = 1",
         "UPDATE auth_user SET password_hash = '\$2y\$10\$R51kCmlq52SEJcVep3uDtOxTXp0r9jPwGa5oQQvRuMQA84PVwCjrK', updated_at = CURRENT_TIMESTAMP WHERE id = 1",
@@ -98,6 +106,12 @@ abstract class SecurityIntegrationTestSupport : PostgresIntegrationTestSupport()
     protected lateinit var inMemoryCooldownStore: InMemoryCooldownStore
 
     @Autowired
+    protected lateinit var fakeTelegramClientGateway: FakeTelegramClientGateway
+
+    @Autowired
+    protected lateinit var inMemoryTelegramPendingAuthStore: InMemoryTelegramPendingAuthStore
+
+    @Autowired
     protected lateinit var corsProperties: CorsProperties
 
     @Autowired
@@ -115,6 +129,8 @@ abstract class SecurityIntegrationTestSupport : PostgresIntegrationTestSupport()
         inMemoryTwoFactorLoginChallengeStore.clear()
         inMemoryRateLimitStore.clear()
         inMemoryCooldownStore.clear()
+        fakeTelegramClientGateway.reset()
+        inMemoryTelegramPendingAuthStore.clear()
         mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
             .apply<DefaultMockMvcBuilder>(springSecurity())
             .build()

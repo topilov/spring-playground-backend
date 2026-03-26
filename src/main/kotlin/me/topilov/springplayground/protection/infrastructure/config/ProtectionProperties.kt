@@ -55,6 +55,11 @@ data class ProtectionProperties(
                 requestLimit = 10,
                 requestWindow = Duration.ofMinutes(10),
             ),
+            ProtectionFlow.TELEGRAM_FOCUS_UPDATE to ProtectionFlowPolicy(
+                captchaRequired = false,
+                requestLimit = 60,
+                requestWindow = Duration.ofMinutes(1),
+            ),
         )
     }
 }

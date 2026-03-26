@@ -65,6 +65,10 @@ app:
         captcha-required: true
         request-limit: 10
         request-window: PT10M
+      telegram-focus-update:
+        captcha-required: false
+        request-limit: 120
+        request-window: PT1M
   passkeys:
     rp-id: localhost
     origins: http://localhost:3000
@@ -79,3 +83,17 @@ app:
     reset-password-path: /reset-password
     password-reset-ttl: PT5M
     public-base-url: http://localhost:3000
+  telegram:
+    enabled: ${APP_TELEGRAM_ENABLED:false}
+    api-id: ${APP_TELEGRAM_API_ID:0}
+    api-hash: ${APP_TELEGRAM_API_HASH:}
+    session-root: ${APP_TELEGRAM_SESSION_ROOT:build/local-telegram-sessions}
+    pending-auth-ttl: ${APP_TELEGRAM_PENDING_AUTH_TTL:PT10M}
+    automation-token-bytes: ${APP_TELEGRAM_AUTOMATION_TOKEN_BYTES:32}
+    encryption-key-base64: ${APP_TELEGRAM_ENCRYPTION_KEY_BASE64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}
+    default-focus-mappings:
+      personal: ${APP_TELEGRAM_DEFAULT_PERSONAL_EMOJI_STATUS_ID:5368324170671202286}
+      airplane: ${APP_TELEGRAM_DEFAULT_AIRPLANE_EMOJI_STATUS_ID:5368324170671202290}
+      do-not-disturb: ${APP_TELEGRAM_DEFAULT_DO_NOT_DISTURB_EMOJI_STATUS_ID:5368324170671202295}
+      reduce-interruptions: ${APP_TELEGRAM_DEFAULT_REDUCE_INTERRUPTIONS_EMOJI_STATUS_ID:5368324170671202300}
+      sleep: ${APP_TELEGRAM_DEFAULT_SLEEP_EMOJI_STATUS_ID:5368324170671202305}

@@ -46,3 +46,4 @@
 - `auth-api.md` compatibility alias pointing to `auth.md`
 - `profile.md`
 - `public.md`
+- `telegram.md`

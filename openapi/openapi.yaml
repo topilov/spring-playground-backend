@@ -12,6 +12,8 @@ tags:
   description: Unauthenticated public endpoints.
 - name: Profile
   description: Authenticated profile endpoints.
+- name: Telegram
+  description: Telegram connection, focus-sync, and automation-token endpoints.
 paths:
   /api/profile/me:
     get:
@@ -907,6 +909,281 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PublicPingResponse"
+  /api/profile/me/telegram:
+    get:
+      tags:
+      - Telegram
+      summary: Get Telegram settings
+      description: Returns Telegram connection state, token metadata, focus settings, and effective focus state for the current authenticated user.
+      operationId: getTelegramSettings
+      responses:
+        "200":
+          description: Telegram settings summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramSettingsResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/connect/start:
+    post:
+      tags:
+      - Telegram
+      summary: Start Telegram connect flow
+      description: Starts a Telegram phone login flow for the current authenticated user.
+      operationId: startTelegramConnection
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramConnectStartRequest"
+        required: true
+      responses:
+        "200":
+          description: Pending Telegram auth created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramConnectResponse"
+        "400":
+          description: Validation failed for the submitted phone number.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/connect/confirm-code:
+    post:
+      tags:
+      - Telegram
+      summary: Submit Telegram login code
+      description: Submits the Telegram login code for a pending auth flow.
+      operationId: confirmTelegramCode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramConnectCodeRequest"
+        required: true
+      responses:
+        "200":
+          description: Telegram auth advanced or completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramConnectResponse"
+        "400":
+          description: Validation failed or the pending auth step is invalid.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/ApiErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Telegram pending auth was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/connect/confirm-password:
+    post:
+      tags:
+      - Telegram
+      summary: Submit Telegram password
+      description: Submits the Telegram account password when Telegram 2FA is enabled.
+      operationId: confirmTelegramPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramConnectPasswordRequest"
+        required: true
+      responses:
+        "200":
+          description: Telegram connection completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramConnectResponse"
+        "400":
+          description: Validation failed or the pending auth step is invalid.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                - $ref: "#/components/schemas/ApiErrorResponse"
+                - $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Telegram pending auth was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/connect:
+    delete:
+      tags:
+      - Telegram
+      summary: Disconnect Telegram account
+      description: Disconnects the current user from Telegram without wiping stored focus preferences.
+      operationId: disconnectTelegram
+      responses:
+        "204":
+          description: Telegram disconnected.
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/focus-settings:
+    put:
+      tags:
+      - Telegram
+      summary: Update Telegram focus settings
+      description: Updates the explicit default no-focus emoji status and per-mode emoji mappings for the current authenticated user.
+      operationId: updateTelegramFocusSettings
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramFocusSettingsRequest"
+        required: true
+      responses:
+        "200":
+          description: Updated Telegram settings summary.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramSettingsResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/automation-token:
+    post:
+      tags:
+      - Telegram
+      summary: Create Telegram automation token
+      description: Creates the initial personal automation token for iOS Shortcuts.
+      operationId: createTelegramAutomationToken
+      responses:
+        "200":
+          description: Raw automation token, returned once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramAutomationTokenResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Telegram account is not connected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Active Telegram automation token already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleErrorResponse"
+      security:
+      - sessionCookie: []
+    delete:
+      tags:
+      - Telegram
+      summary: Revoke Telegram automation token
+      description: Revokes the active Telegram automation token.
+      operationId: revokeTelegramAutomationToken
+      responses:
+        "204":
+          description: Telegram automation token revoked.
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/automation-token/regenerate:
+    post:
+      tags:
+      - Telegram
+      summary: Regenerate Telegram automation token
+      description: Replaces the active Telegram automation token and returns the new raw token once.
+      operationId: regenerateTelegramAutomationToken
+      responses:
+        "200":
+          description: Raw automation token, returned once.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramAutomationTokenResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Telegram account is not connected.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/telegram/focus-updates:
+    post:
+      tags:
+      - Telegram
+      summary: Apply Telegram focus update
+      description: Accepts a token-authenticated focus mode update from iOS Shortcuts and synchronizes the effective Telegram emoji status.
+      operationId: applyTelegramFocusUpdate
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramFocusUpdateRequest"
+        required: true
+      responses:
+        "200":
+          description: Focus update applied and Telegram sync attempted.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramFocusUpdateResponse"
+        "401":
+          description: Missing, invalid, or revoked automation token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Telegram account is not connected for the token owner.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Telegram premium is required to apply emoji status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Abuse protection throttled the automation endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - automationBearerToken: []
 components:
   schemas:
     SimpleErrorResponse:
@@ -930,6 +1207,203 @@ components:
           format: int64
       required:
       - error
+    TelegramConnectStartRequest:
+      type: object
+      properties:
+        phoneNumber:
+          type: string
+          minLength: 1
+      required:
+      - phoneNumber
+    TelegramConnectCodeRequest:
+      type: object
+      properties:
+        pendingAuthId:
+          type: string
+          minLength: 1
+        code:
+          type: string
+          minLength: 1
+      required:
+      - pendingAuthId
+      - code
+    TelegramConnectPasswordRequest:
+      type: object
+      properties:
+        pendingAuthId:
+          type: string
+          minLength: 1
+        password:
+          type: string
+          minLength: 1
+      required:
+      - pendingAuthId
+      - password
+    TelegramUserSummaryResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        phoneNumber:
+          type: string
+        username:
+          type: string
+          nullable: true
+        displayName:
+          type: string
+        premium:
+          type: boolean
+      required:
+      - id
+      - phoneNumber
+      - displayName
+      - premium
+    TelegramConnectResponse:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        pendingAuthId:
+          type: string
+          nullable: true
+        nextStep:
+          type: string
+          enum:
+          - CODE
+          - PASSWORD
+          nullable: true
+        connectionStatus:
+          type: string
+          enum:
+          - CONNECTED
+          - DISCONNECTED
+          nullable: true
+        telegramUser:
+          $ref: "#/components/schemas/TelegramUserSummaryResponse"
+      required:
+      - connected
+    TelegramAutomationTokenSummaryResponse:
+      type: object
+      properties:
+        present:
+          type: boolean
+        tokenHint:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - present
+    TelegramSettingsResponse:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        connectionStatus:
+          type: string
+          enum:
+          - CONNECTED
+          - DISCONNECTED
+          nullable: true
+        telegramUser:
+          $ref: "#/components/schemas/TelegramUserSummaryResponse"
+        automationToken:
+          $ref: "#/components/schemas/TelegramAutomationTokenSummaryResponse"
+        defaultEmojiStatusDocumentId:
+          type: string
+          nullable: true
+        effectiveFocusMode:
+          type: string
+          enum:
+          - personal
+          - airplane
+          - do_not_disturb
+          - reduce_interruptions
+          - sleep
+          nullable: true
+        resolvedEmojiMappings:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+        activeFocusModes:
+          type: array
+          items:
+            type: string
+            enum:
+            - personal
+            - airplane
+            - do_not_disturb
+            - reduce_interruptions
+            - sleep
+      required:
+      - connected
+      - automationToken
+      - resolvedEmojiMappings
+      - activeFocusModes
+    TelegramFocusSettingsRequest:
+      type: object
+      properties:
+        defaultEmojiStatusDocumentId:
+          type: string
+          nullable: true
+        mappings:
+          type: object
+          additionalProperties:
+            type: string
+            nullable: true
+    TelegramAutomationTokenResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        tokenHint:
+          type: string
+      required:
+      - token
+      - tokenHint
+    TelegramFocusUpdateRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum:
+          - personal
+          - airplane
+          - do_not_disturb
+          - reduce_interruptions
+          - sleep
+        active:
+          type: boolean
+      required:
+      - mode
+      - active
+    TelegramFocusUpdateResponse:
+      type: object
+      properties:
+        applied:
+          type: boolean
+        effectiveFocusMode:
+          type: string
+          enum:
+          - personal
+          - airplane
+          - do_not_disturb
+          - reduce_interruptions
+          - sleep
+          nullable: true
+        appliedEmojiStatusDocumentId:
+          type: string
+          nullable: true
+      required:
+      - applied
     UpdateProfileRequest:
       type: object
       description: Payload used to update the current authenticated user's profile.
@@ -1641,3 +2115,8 @@ components:
         requests.
       name: JSESSIONID
       in: cookie
+    automationBearerToken:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: Personal Telegram automation token sent as Authorization: Bearer <token>.

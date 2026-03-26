@@ -17,6 +17,13 @@ import org.springframework.context.annotation.Configuration
     paramName = "JSESSIONID",
     description = "Session cookie returned by POST /api/auth/login and sent on protected requests.",
 )
+@SecurityScheme(
+    name = "automationBearerToken",
+    type = SecuritySchemeType.HTTP,
+    scheme = "bearer",
+    bearerFormat = "opaque",
+    description = "Personal automation token returned by the Telegram automation-token endpoints and sent as Authorization: Bearer <token>.",
+)
 class OpenApiConfig {
     @Bean
     fun openAPI(): OpenAPI = OpenAPI()

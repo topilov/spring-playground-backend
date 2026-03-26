@@ -73,6 +73,10 @@ app:
         captcha-required: true
         request-limit: 50
         request-window: PT10M
+      telegram-focus-update:
+        captcha-required: false
+        request-limit: 200
+        request-window: PT1M
   passkeys:
     rp-id: localhost
     rp-name: Spring Playground Test
@@ -93,3 +97,17 @@ app:
     email-verification-ttl: PT24H
     reset-password-path: /reset-password
     password-reset-ttl: PT30M
+  telegram:
+    enabled: false
+    api-id: 0
+    api-hash:
+    session-root: build/test-telegram-sessions
+    pending-auth-ttl: PT10M
+    automation-token-bytes: 32
+    encryption-key-base64: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    default-focus-mappings:
+      personal: 5368324170671202286
+      airplane: 5368324170671202290
+      do-not-disturb: 5368324170671202295
+      reduce-interruptions: 5368324170671202300
+      sleep: 5368324170671202305

@@ -43,6 +43,7 @@ class SecurityConfig {
                     "/swagger-ui.html",
                     "/swagger-ui/**",
                     "/api/public/ping",
+                    "/api/telegram/focus-updates",
                     "/api/auth/login",
                     "/api/auth/2fa/login/verify",
                     "/api/auth/2fa/login/verify-backup-code",
