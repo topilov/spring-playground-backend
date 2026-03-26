@@ -5,20 +5,26 @@ import me.topilov.springplayground.auth.security.AppUserPrincipal
 import me.topilov.springplayground.telegram.application.TelegramAutomationTokenApplicationService
 import me.topilov.springplayground.telegram.application.TelegramConnectionApplicationService
 import me.topilov.springplayground.telegram.application.TelegramFocusSettingsService
+import me.topilov.springplayground.telegram.application.TelegramModeApplicationService
 import me.topilov.springplayground.telegram.application.TelegramQueryService
-import me.topilov.springplayground.telegram.domain.TelegramFocusMode
 import me.topilov.springplayground.telegram.web.dto.TelegramAutomationTokenResponse
 import me.topilov.springplayground.telegram.web.dto.TelegramConnectCodeRequest
 import me.topilov.springplayground.telegram.web.dto.TelegramConnectPasswordRequest
 import me.topilov.springplayground.telegram.web.dto.TelegramConnectResponse
 import me.topilov.springplayground.telegram.web.dto.TelegramConnectStartRequest
+import me.topilov.springplayground.telegram.web.dto.TelegramCreateModeRequest
 import me.topilov.springplayground.telegram.web.dto.TelegramFocusSettingsRequest
+import me.topilov.springplayground.telegram.web.dto.TelegramModeListResponse
+import me.topilov.springplayground.telegram.web.dto.TelegramModeResponse
 import me.topilov.springplayground.telegram.web.dto.TelegramSettingsResponse
+import me.topilov.springplayground.telegram.web.dto.TelegramUpdateModeRequest
 import me.topilov.springplayground.telegram.web.dto.TelegramUserSummaryResponse
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -33,6 +39,7 @@ class TelegramController(
     private val connectionApplicationService: TelegramConnectionApplicationService,
     private val focusSettingsService: TelegramFocusSettingsService,
     private val automationTokenApplicationService: TelegramAutomationTokenApplicationService,
+    private val modeApplicationService: TelegramModeApplicationService,
 ) {
     @GetMapping
     fun settings(@AuthenticationPrincipal principal: AppUserPrincipal): TelegramSettingsResponse =
@@ -109,9 +116,47 @@ class TelegramController(
         focusSettingsService.updateSettings(
             userId = principal.id,
             defaultEmojiStatusDocumentId = request.defaultEmojiStatusDocumentId,
-            mappings = request.mappings.orEmpty().entries.associate { TelegramFocusMode.fromValue(it.key) to it.value },
         )
         return queryService.getSettings(principal.id)
+    }
+
+    @GetMapping("/modes")
+    fun listModes(
+        @AuthenticationPrincipal principal: AppUserPrincipal,
+    ): TelegramModeListResponse = TelegramModeListResponse(
+        modes = modeApplicationService.listModes(principal.id).map(::toModeResponse),
+    )
+
+    @PostMapping("/modes")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createMode(
+        @AuthenticationPrincipal principal: AppUserPrincipal,
+        @Valid @RequestBody request: TelegramCreateModeRequest,
+    ): TelegramModeResponse = toModeResponse(
+        modeApplicationService.createMode(principal.id, request.mode, request.emojiStatusDocumentId),
+    )
+
+    @PatchMapping("/modes/{mode}")
+    fun updateMode(
+        @AuthenticationPrincipal principal: AppUserPrincipal,
+        @PathVariable mode: String,
+        @Valid @RequestBody request: TelegramUpdateModeRequest,
+    ): TelegramModeResponse = toModeResponse(
+        modeApplicationService.updateMode(
+            userId = principal.id,
+            mode = mode,
+            newMode = request.newMode,
+            emojiStatusDocumentId = request.emojiStatusDocumentId,
+        ),
+    )
+
+    @DeleteMapping("/modes/{mode}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteMode(
+        @AuthenticationPrincipal principal: AppUserPrincipal,
+        @PathVariable mode: String,
+    ) {
+        modeApplicationService.deleteMode(principal.id, mode)
     }
 
     @PostMapping("/automation-token")
@@ -135,4 +180,10 @@ class TelegramController(
     fun revokeAutomationToken(@AuthenticationPrincipal principal: AppUserPrincipal) {
         automationTokenApplicationService.revokeToken(principal.id)
     }
+
+    private fun toModeResponse(mode: me.topilov.springplayground.telegram.domain.TelegramMode): TelegramModeResponse =
+        TelegramModeResponse(
+            mode = mode.modeKey,
+            emojiStatusDocumentId = mode.emojiStatusDocumentId,
+        )
 }

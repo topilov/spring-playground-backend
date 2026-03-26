@@ -39,6 +39,8 @@ class TelegramAccountConnection(
     var sessionDatabaseKeyCiphertext: String? = null,
     @Column(name = "default_emoji_status_document_id", length = 64)
     var defaultEmojiStatusDocumentId: String? = null,
+    @Column(name = "active_mode_id")
+    var activeModeId: Long? = null,
     @Column(name = "last_sync_error_code", length = 64)
     var lastSyncErrorCode: String? = null,
     @Column(name = "last_sync_error_message", length = 500)

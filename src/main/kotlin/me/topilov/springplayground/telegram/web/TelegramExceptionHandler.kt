@@ -5,8 +5,10 @@ import me.topilov.springplayground.common.web.ErrorResponse
 import me.topilov.springplayground.common.web.SimpleErrorResponse
 import me.topilov.springplayground.telegram.domain.exception.TelegramAutomationTokenAlreadyExistsException
 import me.topilov.springplayground.telegram.domain.exception.TelegramAutomationTokenInvalidException
-import me.topilov.springplayground.telegram.domain.exception.TelegramInvalidFocusModeException
 import me.topilov.springplayground.telegram.domain.exception.TelegramInvalidAuthStepException
+import me.topilov.springplayground.telegram.domain.exception.TelegramModeAlreadyExistsException
+import me.topilov.springplayground.telegram.domain.exception.TelegramModeInvalidException
+import me.topilov.springplayground.telegram.domain.exception.TelegramModeNotFoundException
 import me.topilov.springplayground.telegram.domain.exception.TelegramNotConnectedException
 import me.topilov.springplayground.telegram.domain.exception.TelegramPendingAuthNotFoundException
 import me.topilov.springplayground.telegram.domain.exception.TelegramPremiumRequiredException
@@ -29,11 +31,6 @@ class TelegramExceptionHandler {
     fun handleInvalidAuthStep(exception: TelegramInvalidAuthStepException): ErrorResponse =
         ErrorResponse(error = exception.message ?: "Bad request", code = "TELEGRAM_INVALID_AUTH_STEP")
 
-    @ExceptionHandler(TelegramInvalidFocusModeException::class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    fun handleInvalidFocusMode(exception: TelegramInvalidFocusModeException): ErrorResponse =
-        ErrorResponse(error = exception.message ?: "Bad request", code = "TELEGRAM_INVALID_FOCUS_MODE")
-
     @ExceptionHandler(TelegramAutomationTokenInvalidException::class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     fun handleInvalidAutomationToken(exception: TelegramAutomationTokenInvalidException): ErrorResponse =
@@ -53,6 +50,21 @@ class TelegramExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_GATEWAY)
     fun handleSyncFailed(exception: TelegramSyncFailedException): ErrorResponse =
         ErrorResponse(error = exception.message ?: "Bad gateway", code = "TELEGRAM_SYNC_FAILED")
+
+    @ExceptionHandler(TelegramModeNotFoundException::class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    fun handleModeNotFound(exception: TelegramModeNotFoundException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Not found", code = "TELEGRAM_MODE_NOT_FOUND")
+
+    @ExceptionHandler(TelegramModeAlreadyExistsException::class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    fun handleModeAlreadyExists(exception: TelegramModeAlreadyExistsException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Conflict", code = "TELEGRAM_MODE_ALREADY_EXISTS")
+
+    @ExceptionHandler(TelegramModeInvalidException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleModeInvalid(exception: TelegramModeInvalidException): ErrorResponse =
+        ErrorResponse(error = exception.message ?: "Bad request", code = "TELEGRAM_MODE_INVALID")
 
     @ExceptionHandler(TelegramAutomationTokenAlreadyExistsException::class)
     @ResponseStatus(HttpStatus.CONFLICT)

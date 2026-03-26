@@ -217,7 +217,8 @@ The backend also includes a Telegram focus-sync slice under the dedicated top-le
 Capabilities:
 
 - authenticated Telegram connect flow at `/api/profile/me/telegram/connect/*`
-- user-managed default no-focus emoji status and per-focus-mode emoji mappings at `/api/profile/me/telegram/focus-settings`
+- user-managed default no-focus emoji status at `/api/profile/me/telegram/focus-settings`
+- user-managed Telegram mode resources at `/api/profile/me/telegram/modes`
 - one personal automation token per user at `/api/profile/me/telegram/automation-token*`
 - minimal iOS Shortcut endpoint at `/api/telegram/focus-updates`
 

@@ -1052,7 +1052,7 @@ paths:
       tags:
       - Telegram
       summary: Update Telegram focus settings
-      description: Updates the explicit default no-focus emoji status and per-mode emoji mappings for the current authenticated user.
+      description: Updates the explicit default no-active-mode emoji status for the current authenticated user.
       operationId: updateTelegramFocusSettings
       requestBody:
         content:
@@ -1069,6 +1069,132 @@ paths:
                 $ref: "#/components/schemas/TelegramSettingsResponse"
         "401":
           description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/modes:
+    get:
+      tags:
+      - Telegram
+      summary: List Telegram modes
+      description: Returns the current authenticated user's stored Telegram mode resources.
+      operationId: listTelegramModes
+      responses:
+        "200":
+          description: Telegram mode list.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramModeListResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+      security:
+      - sessionCookie: []
+    post:
+      tags:
+      - Telegram
+      summary: Create Telegram mode
+      description: Creates a user-defined Telegram mode resource for the current authenticated user.
+      operationId: createTelegramMode
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramCreateModeRequest"
+        required: true
+      responses:
+        "201":
+          description: Created Telegram mode.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramModeResponse"
+        "400":
+          description: Invalid mode payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "409":
+          description: Telegram mode already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - sessionCookie: []
+  /api/profile/me/telegram/modes/{mode}:
+    patch:
+      tags:
+      - Telegram
+      summary: Update Telegram mode
+      description: Updates a user-defined Telegram mode resource for the current authenticated user.
+      operationId: updateTelegramMode
+      parameters:
+      - in: path
+        name: mode
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramUpdateModeRequest"
+        required: true
+      responses:
+        "200":
+          description: Updated Telegram mode.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramModeResponse"
+        "400":
+          description: Invalid mode payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Telegram mode was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Telegram mode already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      security:
+      - sessionCookie: []
+    delete:
+      tags:
+      - Telegram
+      summary: Delete Telegram mode
+      description: Deletes a user-defined Telegram mode resource for the current authenticated user.
+      operationId: deleteTelegramMode
+      parameters:
+      - in: path
+        name: mode
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Telegram mode deleted.
+        "401":
+          description: Missing or invalid JSESSIONID session cookie.
+        "404":
+          description: Telegram mode was not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
       security:
       - sessionCookie: []
   /api/profile/me/telegram/automation-token:
@@ -1143,7 +1269,7 @@ paths:
       tags:
       - Telegram
       summary: Apply Telegram focus update
-      description: Accepts a token-authenticated focus mode update from iOS Shortcuts and synchronizes the effective Telegram emoji status.
+      description: Accepts a token-authenticated user-defined mode update from iOS Shortcuts and synchronizes the active Telegram emoji status.
       operationId: applyTelegramFocusUpdate
       requestBody:
         content:
@@ -1165,7 +1291,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
-          description: Telegram account is not connected for the token owner.
+          description: Telegram account is not connected for the token owner or the requested mode was not found.
           content:
             application/json:
               schema:
@@ -1319,46 +1445,63 @@ components:
         defaultEmojiStatusDocumentId:
           type: string
           nullable: true
-        effectiveFocusMode:
+        activeFocusMode:
           type: string
-          enum:
-          - personal
-          - airplane
-          - do_not_disturb
-          - reduce_interruptions
-          - sleep
           nullable: true
-        resolvedEmojiMappings:
-          type: object
-          additionalProperties:
-            type: string
-            nullable: true
-        activeFocusModes:
+        modes:
           type: array
           items:
-            type: string
-            enum:
-            - personal
-            - airplane
-            - do_not_disturb
-            - reduce_interruptions
-            - sleep
+            $ref: "#/components/schemas/TelegramModeResponse"
       required:
       - connected
       - automationToken
-      - resolvedEmojiMappings
-      - activeFocusModes
+      - modes
     TelegramFocusSettingsRequest:
       type: object
       properties:
         defaultEmojiStatusDocumentId:
           type: string
           nullable: true
-        mappings:
-          type: object
-          additionalProperties:
-            type: string
-            nullable: true
+    TelegramModeResponse:
+      type: object
+      properties:
+        mode:
+          type: string
+        emojiStatusDocumentId:
+          type: string
+      required:
+      - mode
+      - emojiStatusDocumentId
+    TelegramModeListResponse:
+      type: object
+      properties:
+        modes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TelegramModeResponse"
+      required:
+      - modes
+    TelegramCreateModeRequest:
+      type: object
+      properties:
+        mode:
+          type: string
+          minLength: 1
+        emojiStatusDocumentId:
+          type: string
+          minLength: 1
+      required:
+      - mode
+      - emojiStatusDocumentId
+    TelegramUpdateModeRequest:
+      type: object
+      properties:
+        newMode:
+          type: string
+          nullable: true
+        emojiStatusDocumentId:
+          type: string
+          nullable: true
     TelegramAutomationTokenResponse:
       type: object
       properties:
@@ -1374,12 +1517,7 @@ components:
       properties:
         mode:
           type: string
-          enum:
-          - personal
-          - airplane
-          - do_not_disturb
-          - reduce_interruptions
-          - sleep
+          minLength: 1
         active:
           type: boolean
       required:
@@ -1390,14 +1528,8 @@ components:
       properties:
         applied:
           type: boolean
-        effectiveFocusMode:
+        activeFocusMode:
           type: string
-          enum:
-          - personal
-          - airplane
-          - do_not_disturb
-          - reduce_interruptions
-          - sleep
           nullable: true
         appliedEmojiStatusDocumentId:
           type: string

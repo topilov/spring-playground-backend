@@ -4,17 +4,14 @@ import jakarta.servlet.http.HttpServletRequest
 import me.topilov.springplayground.protection.application.ProtectionService
 import me.topilov.springplayground.protection.domain.ProtectionFlow
 import me.topilov.springplayground.telegram.domain.TelegramConnectionStatus
-import me.topilov.springplayground.telegram.domain.TelegramEmojiMappingResolver
-import me.topilov.springplayground.telegram.domain.TelegramFocusMode
-import me.topilov.springplayground.telegram.domain.TelegramFocusPriorityResolver
-import me.topilov.springplayground.telegram.domain.TelegramFocusState
+import me.topilov.springplayground.telegram.domain.exception.TelegramModeInvalidException
+import me.topilov.springplayground.telegram.domain.exception.TelegramModeNotFoundException
 import me.topilov.springplayground.telegram.domain.exception.TelegramNotConnectedException
 import me.topilov.springplayground.telegram.domain.exception.TelegramPremiumRequiredException
 import me.topilov.springplayground.telegram.domain.exception.TelegramSyncFailedException
 import me.topilov.springplayground.telegram.infrastructure.crypto.TelegramSessionSecretCrypto
 import me.topilov.springplayground.telegram.infrastructure.repository.TelegramAccountConnectionRepository
-import me.topilov.springplayground.telegram.infrastructure.repository.TelegramFocusMappingRepository
-import me.topilov.springplayground.telegram.infrastructure.repository.TelegramFocusStateRepository
+import me.topilov.springplayground.telegram.infrastructure.repository.TelegramModeRepository
 import me.topilov.springplayground.telegram.infrastructure.tdlight.TelegramClientGateway
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -22,7 +19,7 @@ import java.time.Clock
 import java.time.Instant
 
 data class TelegramFocusAutomationResult(
-    val effectiveFocusMode: TelegramFocusMode?,
+    val activeFocusMode: String?,
     val appliedEmojiStatusDocumentId: String?,
 )
 
@@ -30,10 +27,7 @@ data class TelegramFocusAutomationResult(
 class TelegramFocusAutomationApplicationService(
     private val automationTokenService: TelegramAutomationTokenApplicationService,
     private val accountConnectionRepository: TelegramAccountConnectionRepository,
-    private val focusStateRepository: TelegramFocusStateRepository,
-    private val focusMappingRepository: TelegramFocusMappingRepository,
-    private val priorityResolver: TelegramFocusPriorityResolver,
-    private val mappingResolver: TelegramEmojiMappingResolver,
+    private val modeRepository: TelegramModeRepository,
     private val telegramClientGateway: TelegramClientGateway,
     private val sessionSecretCrypto: TelegramSessionSecretCrypto,
     private val protectionService: ProtectionService,
@@ -42,7 +36,7 @@ class TelegramFocusAutomationApplicationService(
     @Transactional
     fun applyFocusUpdate(
         rawToken: String,
-        mode: TelegramFocusMode,
+        mode: String,
         active: Boolean,
         request: HttpServletRequest,
     ): TelegramFocusAutomationResult {
@@ -67,23 +61,16 @@ class TelegramFocusAutomationApplicationService(
         }
 
         val now = Instant.now(clock)
-        val focusState = focusStateRepository.findByUserIdAndFocusMode(userId, mode)
-            ?: TelegramFocusState(userId = userId, focusMode = mode)
-        focusState.active = active
-        if (active) {
-            focusState.lastActivatedAt = now
-        }
-        focusState.updatedAt = now
-        focusStateRepository.save(focusState)
+        val normalizedMode = normalizeModeKey(mode)
+        val requestedMode = modeRepository.findByUserIdAndModeKey(userId, normalizedMode)
+        val currentActiveMode = connection.activeModeId?.let(modeRepository::findById)?.orElse(null)
 
-        val allStates = focusStateRepository.findAllByUserId(userId)
-        val effectiveState = priorityResolver.resolveEffectiveMode(allStates)
-        val userMappings = focusMappingRepository.findAllByUserId(userId).associate { it.focusMode to it.emojiStatusDocumentId }
-        val emojiStatusDocumentId = mappingResolver.resolveEmojiStatusDocumentId(
-            effectiveMode = effectiveState?.focusMode,
-            userMappings = userMappings,
-            defaultNoFocusEmojiStatusDocumentId = connection.defaultEmojiStatusDocumentId,
-        )
+        val nextActiveMode = when {
+            active -> requestedMode ?: throw TelegramModeNotFoundException(normalizedMode)
+            currentActiveMode?.modeKey == normalizedMode -> null
+            else -> currentActiveMode
+        }
+        val emojiStatusDocumentId = nextActiveMode?.emojiStatusDocumentId ?: connection.defaultEmojiStatusDocumentId
 
         try {
             telegramClientGateway.updateEmojiStatus(
@@ -101,6 +88,7 @@ class TelegramFocusAutomationApplicationService(
             throw TelegramSyncFailedException(cause = exception)
         }
 
+        connection.activeModeId = nextActiveMode?.id
         connection.lastSyncErrorCode = null
         connection.lastSyncErrorMessage = null
         connection.lastSyncedAt = now
@@ -108,8 +96,13 @@ class TelegramFocusAutomationApplicationService(
         automationTokenService.markUsed(token)
 
         return TelegramFocusAutomationResult(
-            effectiveFocusMode = effectiveState?.focusMode,
+            activeFocusMode = nextActiveMode?.modeKey,
             appliedEmojiStatusDocumentId = emojiStatusDocumentId,
         )
     }
+
+    private fun normalizeModeKey(value: String): String =
+        value.trim()
+            .takeIf { it.isNotBlank() && it.length <= 64 }
+            ?: throw TelegramModeInvalidException("Telegram mode must be a non-blank string up to 64 characters.")
 }

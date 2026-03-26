@@ -3,7 +3,6 @@ package me.topilov.springplayground.telegram.web.dto
 import com.fasterxml.jackson.annotation.JsonInclude
 import me.topilov.springplayground.telegram.application.TelegramPendingAuthStep
 import me.topilov.springplayground.telegram.domain.TelegramConnectionStatus
-import me.topilov.springplayground.telegram.domain.TelegramFocusMode
 import java.time.Instant
 
 data class TelegramUserSummaryResponse(
@@ -34,7 +33,6 @@ data class TelegramSettingsResponse(
     val pendingAuth: TelegramPendingAuthResponse? = null,
     val automationToken: TelegramAutomationTokenSummaryResponse,
     val defaultEmojiStatusDocumentId: String? = null,
-    val effectiveFocusMode: TelegramFocusMode? = null,
-    val resolvedEmojiMappings: Map<String, String?>,
-    val activeFocusModes: List<TelegramFocusMode>,
+    val activeFocusMode: String? = null,
+    val modes: List<TelegramModeResponse> = emptyList(),
 )
