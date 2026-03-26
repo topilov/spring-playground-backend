@@ -2,7 +2,9 @@ package me.topilov.springplayground.telegram.infrastructure.tdlight
 
 import me.topilov.springplayground.telegram.infrastructure.config.TelegramProperties
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.Test
+import java.util.concurrent.TimeoutException
 
 class TdlightTelegramClientGatewayTest {
     private val properties = TelegramProperties(
@@ -59,6 +61,25 @@ class TdlightTelegramClientGatewayTest {
         val session = sessionFactory.requireSession("session-2")
         assertThat(session.appliedEmojiStatuses).containsExactly("1005")
     }
+
+    @Test
+    fun `update emoji status surfaces reconnect hint when tdlight session times out`() {
+        val session = sessionFactory.session("session-3")
+        session.updateEmojiStatusFailure = TimeoutException("tdlib did not become ready")
+
+        assertThatThrownBy {
+            gateway.updateEmojiStatus(
+                userId = 1L,
+                phoneNumber = "+15551234567",
+                telegramUserId = 900001L,
+                sessionDirectoryKey = "session-3",
+                sessionDatabaseKey = "db-key",
+                emojiStatusDocumentId = "1005",
+            )
+        }
+            .isInstanceOf(IllegalStateException::class.java)
+            .hasMessageContaining("Reconnect Telegram account")
+    }
 }
 
 private class FakeTdlightSessionFactory : TdlightSessionFactory {
@@ -93,6 +114,7 @@ private class FakeTdlightSession(
     )
     val submittedCodes = mutableListOf<String>()
     val appliedEmojiStatuses = mutableListOf<String?>()
+    var updateEmojiStatusFailure: Exception? = null
 
     override fun startAuthentication() {
         startAuthenticationCalls += 1
@@ -118,6 +140,7 @@ private class FakeTdlightSession(
         )
 
     override fun updateEmojiStatus(emojiStatusDocumentId: String?) {
+        updateEmojiStatusFailure?.let { throw it }
         appliedEmojiStatuses += emojiStatusDocumentId
     }
 

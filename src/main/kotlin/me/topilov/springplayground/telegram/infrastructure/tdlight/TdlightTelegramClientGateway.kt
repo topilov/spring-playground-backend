@@ -2,6 +2,8 @@ package me.topilov.springplayground.telegram.infrastructure.tdlight
 
 import me.topilov.springplayground.telegram.infrastructure.config.TelegramProperties
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.TimeoutException
 
 class TdlightTelegramClientGateway(
     private val properties: TelegramProperties,
@@ -55,7 +57,13 @@ class TdlightTelegramClientGateway(
         emojiStatusDocumentId: String?,
     ) {
         requireEnabled()
-        sessionFor(phoneNumber, sessionDirectoryKey, sessionDatabaseKey).updateEmojiStatus(emojiStatusDocumentId)
+        try {
+            sessionFor(phoneNumber, sessionDirectoryKey, sessionDatabaseKey).updateEmojiStatus(emojiStatusDocumentId)
+        } catch (exception: TimeoutException) {
+            throw sessionUnavailableException(exception)
+        } catch (exception: ExecutionException) {
+            throw sessionUnavailableException(exception)
+        }
     }
 
     private fun sessionFor(
@@ -81,6 +89,12 @@ class TdlightTelegramClientGateway(
             "TDLight Telegram integration is missing apiId/apiHash configuration."
         }
     }
+
+    private fun sessionUnavailableException(exception: Exception): IllegalStateException =
+        IllegalStateException(
+            "Telegram TDLib session is not ready for emoji status updates. Reconnect Telegram account.",
+            exception,
+        )
 
     private data class CachedTdlightSession(
         val phoneNumber: String,
