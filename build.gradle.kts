@@ -34,6 +34,9 @@ repositories {
 dependencies {
     implementation(platform("it.tdlight:tdlight-java-bom:3.4.4+td.1.8.52"))
     implementation("it.tdlight:tdlight-java")
+
+    runtimeOnly("it.tdlight:tdlight-natives:4.0.558:linux_amd64_gnu_ssl3")
+
     implementation("com.warrenstrange:googleauth:1.5.0")
     implementation("com.yubico:webauthn-server-core:2.8.1")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
