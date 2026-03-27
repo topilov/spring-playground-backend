@@ -42,7 +42,7 @@ Template Spring Boot project on Kotlin with session-based security, PostgreSQL, 
    curl http://localhost:8080/actuator/health
    ```
 
-4. Login with the seeded demo account:
+4. Login with the local-profile demo account:
 
    ```bash
    curl -i \
@@ -51,6 +51,8 @@ Template Spring Boot project on Kotlin with session-based security, PostgreSQL, 
      -d '{"usernameOrEmail":"demo","password":"demo-password"}' \
      http://localhost:8080/api/auth/login
    ```
+
+   In the `local` profile, captcha validation is disabled for the protected public auth flows, so this local demo login does not need a `captchaToken`.
 
    The same account also supports login by email: `demo@example.com`.
 
@@ -334,6 +336,8 @@ Use the markdown docs as the companion reference for:
 
 ## Demo account
 
+- Applies to the backend `local` profile only.
 - Username: `demo`
 - Email: `demo@example.com`
 - Password: `demo-password`
+- Guaranteed automatically on local startup.

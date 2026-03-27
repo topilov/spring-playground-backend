@@ -385,7 +385,7 @@ Current request shape:
 ```json
 {
   "token": "string, required",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 

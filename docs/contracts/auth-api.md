@@ -32,4 +32,5 @@ Use `auth.md` as the source of truth for request and response shapes, auth requi
 
 Current protection note:
 
-- Sensitive public auth requests now include a required `captchaToken` contract field and may return abuse-protection `429 Too Many Requests` responses with `retryAfterSeconds`.
+- Sensitive public auth requests require a `captchaToken` outside the `local` profile and may return abuse-protection `429 Too Many Requests` responses with `retryAfterSeconds`.
+- Local-profile note: local development disables captcha validation for these protected auth flows and guarantees the demo credentials `demo` / `demo-password`.

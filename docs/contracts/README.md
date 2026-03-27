@@ -7,6 +7,7 @@
 - Backend owns the contract. Frontend should not invent request or response shapes independently.
 - OpenAPI lives alongside these docs as the machine-readable contract at runtime and in `openapi/openapi.yaml`.
 - If code and `docs/contracts/*` disagree, treat that as backend work to resolve immediately.
+- Local development convention: when the backend runs with the `local` profile, captcha validation is disabled for protected public auth/profile verification flows and the demo account `demo` / `demo-password` is guaranteed for local-only use.
 
 ## What Every Contract Doc Must Include
 
