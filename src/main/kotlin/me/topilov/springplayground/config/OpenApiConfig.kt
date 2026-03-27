@@ -35,7 +35,9 @@ class OpenApiConfig {
                 .description(
                     "Session-based auth/profile/public HTTP API. " +
                         "This OpenAPI schema is the machine-readable contract for frontend integration. " +
-                        "Browser clients should send credentialed requests so the JSESSIONID session cookie is stored and resent.",
+                        "Browser clients should send credentialed requests so the JSESSIONID session cookie is stored and resent. " +
+                        "Local-profile note: captcha validation is disabled for protected public auth flows during local development, " +
+                        "and the local profile guarantees the demo credentials demo / demo-password.",
                 ),
         )
 }

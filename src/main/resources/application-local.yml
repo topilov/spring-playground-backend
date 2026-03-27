@@ -24,51 +24,59 @@ app:
   abuse:
     flows:
       register:
-        captcha-required: true
+        captcha-required: false
         request-limit: 10
         request-window: PT5M
       login:
-        captcha-required: true
+        captcha-required: false
         request-limit: 30
         request-window: PT5M
         failure-limit: 5
         failure-window: PT10M
       forgot-password:
-        captcha-required: true
+        captcha-required: false
         request-limit: 10
         request-window: PT10M
         cooldown: PT2M
       resend-verification-email:
-        captcha-required: true
+        captcha-required: false
         request-limit: 10
         request-window: PT10M
         cooldown: PT2M
       reset-password:
-        captcha-required: true
+        captcha-required: false
         request-limit: 10
         request-window: PT10M
       two-factor-login:
-        captcha-required: true
+        captcha-required: false
         request-limit: 20
         request-window: PT5M
         failure-limit: 5
         failure-window: PT10M
       passkey-login-options:
-        captcha-required: true
+        captcha-required: false
         request-limit: 20
         request-window: PT5M
       passkey-login-verify:
-        captcha-required: true
+        captcha-required: false
         request-limit: 20
         request-window: PT5M
       verify-email-change:
-        captcha-required: true
+        captcha-required: false
         request-limit: 10
         request-window: PT10M
       telegram-focus-update:
         captcha-required: false
         request-limit: 120
         request-window: PT1M
+  local:
+    demo-user:
+      enabled: true
+      username: demo
+      email: demo@example.com
+      password: demo-password
+      display-name: Demo User
+      bio: Session-backed example profile
   passkeys:
     rp-id: localhost
     origins: http://localhost:3000

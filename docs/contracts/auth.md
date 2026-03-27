@@ -6,6 +6,12 @@ Change note for this task: `Breaking` because sensitive public auth/security req
 Change note for this task: `Non-breaking` because forgot/reset password tokens remain Redis-backed and the non-enumerating accepted behavior is preserved for first-time forgot/resend submissions.
 Change note for this task: `Non-breaking` because passkeys and TOTP 2FA still use the same session model while now participating in centralized abuse protection.
 
+Local development note:
+
+- When the backend runs with the `local` profile, captcha validation is disabled for the protected public auth flows documented here.
+- The `local` profile also guarantees a demo account with username `demo`, email `demo@example.com`, and password `demo-password`.
+- Outside the `local` profile, keep sending `captchaToken` exactly as documented below.
+
 ## POST /api/auth/register
 
 **Purpose**
@@ -34,7 +40,7 @@ Current request shape:
   "username": "string, required, must not be blank, max 64 chars",
   "email": "string, required, must be a valid email, max 255 chars",
   "password": "string, required, must not be blank, min 8 chars, max 100 chars",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 
@@ -164,7 +170,7 @@ Current request shape:
 ```json
 {
   "email": "string, required, must be a valid email, max 255 chars",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 
@@ -223,7 +229,7 @@ Current request shape:
 ```json
 {
   "email": "string, required, must be a valid email, max 255 chars",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 
@@ -286,7 +292,7 @@ Current request shape:
 {
   "token": "string, required, must not be blank",
   "newPassword": "string, required, must not be blank, min 8 chars, max 100 chars",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 
@@ -357,7 +363,7 @@ Current request shape:
 {
   "usernameOrEmail": "string, required, must not be blank",
   "password": "string, required, must not be blank",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 
@@ -419,6 +425,8 @@ curl -i \
 
 **Notes**
 
+- Outside the `local` profile, the login request still requires `captchaToken`.
+- In the `local` profile, the demo account `demo` / `demo-password` can log in without a captcha token.
 - Successful login sets the `JSESSIONID` session cookie.
 - A `202 Accepted` 2FA challenge response does not set `JSESSIONID`.
 - Successful login requires a verified email address.
@@ -1012,7 +1020,7 @@ Current request shape:
 ```json
 {
   "usernameOrEmail": "string, optional, reserved for future login hints",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 
@@ -1085,7 +1093,7 @@ Current request shape:
 {
   "ceremonyId": "string, required, must not be blank",
   "credential": "object, required, browser-generated WebAuthn assertion payload",
-  "captchaToken": "string, required in the contract, validated server-side through Cloudflare Turnstile"
+  "captchaToken": "string, required outside the local profile, validated server-side through Cloudflare Turnstile in non-local environments"
 }
 ```
 
